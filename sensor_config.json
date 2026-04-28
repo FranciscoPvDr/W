@@ -1,0 +1,16 @@
+{
+  "SERVER_URL": "https://TU-URL-DE-RENDER.onrender.com",
+  "PING_INTERVAL": 30,
+  "EMPRESA_RED": "192.168.80.",
+  "WIFI_EMPRESAS": [
+    "Comite IA",
+    "MC emegencia",
+    "Mundo Charro Administracion",
+    "Mundo_Charro",
+    "Mundo Charro Tecnologias",
+    "MundoCharroExpansiones",
+    "Mundo Charro VISITA",
+    "DIRECCION MUNDO CHARRO",
+    "Mundo Charro Invitados"
+  ]
+}

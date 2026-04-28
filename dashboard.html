@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Equipos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0e0f11;
+    --surface: #16181c;
+    --surface2: #1e2128;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text2: #8b8f9e;
+    --text3: #555968;
+    --green: #1d9e75;
+    --green-bg: #04342c;
+    --green-text: #5dcaa5;
+    --red: #e24b4a;
+    --red-bg: #501313;
+    --red-text: #f09595;
+    --amber: #ef9f27;
+    --amber-bg: #412402;
+    --amber-text: #fac775;
+    --blue: #378add;
+    --blue-bg: #042c53;
+    --blue-text: #85b7eb;
+    --accent: #534ab7;
+    --accent-light: #afa9ec;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 10% -10%, rgba(83,74,183,0.25), transparent 60%),
+      radial-gradient(1000px 450px at 100% 0%, rgba(55,138,221,0.15), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── LOGIN ── */
+  #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-card {
+    background: linear-gradient(180deg, rgba(30,33,40,0.95), rgba(22,24,28,0.95));
+    border: 1px solid var(--border2);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+    border-radius: 16px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 380px;
+  }
+  .login-logo { display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 2rem; }
+  .login-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+  .login-card label { display: block; font-size: 0.72rem; letter-spacing: 0.08em; color: var(--text3); text-transform: uppercase; margin-bottom: 6px; margin-top: 1rem; }
+  .login-card input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text); outline: none; transition: border-color 0.15s; }
+  .login-card input:focus { border-color: var(--accent); }
+  .login-btn { width: 100%; margin-top: 1.5rem; padding: 12px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-family: 'Syne', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .login-btn:hover { background: #6359c8; }
+  .login-error { margin-top: 1rem; padding: 8px 12px; background: var(--red-bg); border: 1px solid var(--red); border-radius: 6px; font-size: 0.8rem; color: var(--red-text); display: none; }
+
+  /* ── DASHBOARD ── */
+  #dashboard-screen { display: none; }
+  header {
+    padding: 1.2rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(14,15,17,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 10;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-info { font-size: 0.75rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+  .logout-btn { padding: 4px 12px; border-radius: 5px; border: 1px solid var(--border2); background: transparent; color: var(--text2); font-family: 'Syne', sans-serif; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .logout-btn:hover { background: var(--red-bg); color: var(--red-text); border-color: var(--red); }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+  #status-indicator { font-size: 0.75rem; padding: 4px 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+  .status-ok { background: var(--green-bg); color: var(--green-text); }
+  .status-err { background: var(--red-bg); color: var(--red-text); }
+  .status-loading { background: var(--amber-bg); color: var(--amber-text); }
+
+  main { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 2rem; }
+  .metric {
+    background: linear-gradient(180deg, rgba(30,33,40,0.95), rgba(22,24,28,0.95));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .metric:hover { transform: translateY(-2px); border-color: var(--border2); }
+  .metric-label { font-size: 0.7rem; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; margin-bottom: 8px; }
+  .metric-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+  .m-total .metric-value { color: var(--text); }
+  .m-online .metric-value { color: var(--green-text); }
+  .m-offline .metric-value { color: var(--text3); }
+  .m-fuera .metric-value { color: var(--red-text); }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 4px; width: fit-content; box-shadow: 0 6px 18px rgba(0,0,0,0.2); }
+  .tab-btn { padding: 6px 16px; border-radius: 6px; border: none; background: transparent; color: var(--text2); font-family: 'Syne', sans-serif; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+  .tab-btn.active { background: var(--accent); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,0.05) inset; }
+  .tab-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+  .controls { display: flex; gap: 10px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; background: rgba(22,24,28,0.5); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+  .filter-btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border2); background: transparent; color: var(--text2); font-family: 'Syne', sans-serif; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; }
+  .filter-btn:hover { background: var(--surface2); color: var(--text); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent-light); color: #fff; }
+  .refresh-btn { margin-left: auto; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border2); background: var(--surface); color: var(--accent-light); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .refresh-btn:hover { background: var(--surface2); }
+  #last-update { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text3); }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.24); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th { padding: 12px 16px; text-align: left; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); font-weight: 400; }
+  td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  tr:hover td { background: rgba(83,74,183,0.14); }
+  .hostname { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text); }
+  .device-id { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text3); margin-top: 2px; }
+  .ip { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--blue-text); }
+  .ssid { font-size: 0.8rem; color: var(--text2); }
+  .ts { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text3); }
+  .coords { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text3); }
+  .badge-online { background: var(--green-bg); color: var(--green-text); }
+  .badge-offline { background: var(--surface2); color: var(--text3); border: 1px solid var(--border); }
+  .badge-dentro { background: var(--blue-bg); color: var(--blue-text); }
+  .badge-fuera { background: var(--red-bg); color: var(--red-text); }
+  .map-btn { padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--accent-light); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; cursor: pointer; transition: all 0.15s; }
+  .map-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .del-btn { padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--text3); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+  .del-btn:hover { background: var(--red-bg); color: var(--red-text); border-color: var(--red); }
+
+  .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text3); }
+  .empty-state p { font-size: 0.85rem; margin-top: 8px; }
+  .spinner { width: 24px; height: 24px; border: 2px solid var(--border2); border-top-color: var(--accent-light); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .alert-banner { background: var(--red-bg); border: 1px solid var(--red); border-radius: 8px; padding: 10px 16px; margin-bottom: 1.5rem; font-size: 0.82rem; color: var(--red-text); display: none; }
+  .alert-banner.visible { display: block; }
+
+  /* ── MAPA ── */
+  #map-view { display: none; }
+  #map-container { width: 100%; height: 600px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(0,0,0,0.24); }
+  .map-legend { display: flex; gap: 16px; margin-top: 12px; font-size: 0.75rem; color: var(--text2); padding: 10px 12px; background: rgba(22,24,28,0.5); border: 1px solid var(--border); border-radius: 8px; width: fit-content; }
+  .map-legend span { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  @media (max-width: 900px) {
+    header { padding: 1rem; }
+    .header-right { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    main { padding: 1rem; }
+    .controls { padding: 8px; }
+    .refresh-btn { margin-left: 0; }
+    #map-container { height: 420px; }
+  }
+
+  @media (max-width: 640px) {
+    .login-card { margin: 1rem; padding: 1.5rem; }
+    .metrics { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    .metric-value { font-size: 1.4rem; }
+    .tabs { width: 100%; }
+    .tab-btn { flex: 1; }
+    .table-wrap { overflow-x: auto; }
+    table { min-width: 760px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><div class="login-dot"></div>MONITOR DE EQUIPOS</div>
+    <label>Usuario</label>
+    <input type="text" id="login-user" placeholder="admin" autocomplete="username" />
+    <label>Contrasena</label>
+    <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" />
+    <div class="login-error" id="login-error">Usuario o contrasena incorrectos</div>
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard-screen">
+  <header>
+    <div class="logo"><div class="logo-dot"></div>MONITOR DE EQUIPOS</div>
+    <div class="header-right">
+      <span class="user-info" id="user-display"></span>
+      <span class="badge" id="status-indicator" style="background:var(--amber-bg);color:var(--amber-text)">conectando...</span>
+      <button class="logout-btn" onclick="doLogout()">Cerrar sesion</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="alert-banner" class="alert-banner"></div>
+
+    <div class="metrics">
+      <div class="metric m-total"><div class="metric-label">Total equipos</div><div class="metric-value" id="m-total">—</div></div>
+      <div class="metric m-online"><div class="metric-label">Online</div><div class="metric-value" id="m-online">—</div></div>
+      <div class="metric m-offline"><div class="metric-label">Offline</div><div class="metric-value" id="m-offline">—</div></div>
+      <div class="metric m-fuera"><div class="metric-label">Fuera de red</div><div class="metric-value" id="m-fuera">—</div></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('lista', this)">Lista</button>
+      <button class="tab-btn" onclick="switchTab('mapa', this)">Mapa</button>
+    </div>
+
+    <!-- VISTA LISTA -->
+    <div id="lista-view">
+      <div class="controls">
+        <button class="filter-btn active" onclick="setFilter('todos', this)">Todos</button>
+        <button class="filter-btn" onclick="setFilter('online', this)">Online</button>
+        <button class="filter-btn" onclick="setFilter('offline', this)">Offline</button>
+        <button class="filter-btn" onclick="setFilter('sin_senal', this)">Sin señal</button>
+        <button class="filter-btn" onclick="setFilter('fuera', this)">Fuera de red</button>
+        <button class="refresh-btn" onclick="fetchData()">↻ Actualizar</button>
+        <span id="last-update"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Equipo</th>
+              <th>Serie</th>
+              <th>Asignado a</th>
+              <th>IP</th>
+              <th>Red / SSID</th>
+              <th>Estado</th>
+              <th>Ubicacion</th>
+              <th>Coordenadas</th>
+              <th>Ultimo ping</th>
+              <th>Mapa</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-equipos">
+            <tr><td colspan="11"><div class="empty-state"><div class="spinner"></div><p>Cargando...</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VISTA MAPA -->
+    <div id="map-view">
+      <div id="map-container"></div>
+      <div class="map-legend">
+        <span><div class="legend-dot" style="background:#1d9e75"></div>Dentro / Online</span>
+        <span><div class="legend-dot" style="background:#e24b4a"></div>Fuera de red</span>
+        <span><div class="legend-dot" style="background:#555968"></div>Offline</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Configuration: Set your Render URL here or use environment variable
+  const RENDER_URL = "https://TU-URL-DE-RENDER.onrender.com";
+  const SERVER = (window.location.origin === 'null' || window.location.protocol === 'file:')
+    ? RENDER_URL
+    : window.location.origin;
+
+  const GOOGLE_API_KEY = 'AIzaSyCcGAhqaxgQRMxilFd5sYXIKvIzQq1DeKE';
+
+  let TOKEN = null;
+  let currentFilter = 'todos';
+  let allEquipos = [];
+  let refreshInterval = null;
+  let map = null;
+  let markers = [];
+  let currentTab = 'lista';
+  let offlineAlertMinutes = 10;
+
+  document.getElementById('login-pass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  async function doLogin() {
+    const user = document.getElementById('login-user').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    const errEl = document.getElementById('login-error');
+    errEl.style.display = 'none';
+    const form = new URLSearchParams();
+    form.append('username', user);
+    form.append('password', pass);
+    try {
+      const res = await fetch(`${SERVER}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form
+      });
+      if (!res.ok) { errEl.style.display = 'block'; return; }
+      const data = await res.json();
+      TOKEN = data.access_token;
+      document.getElementById('user-display').textContent = data.nombre;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard-screen').style.display = 'block';
+      fetchData();
+      refreshInterval = setInterval(fetchData, 30000);
+    } catch (err) {
+      errEl.textContent = 'No se pudo conectar al servidor';
+      errEl.style.display = 'block';
+    }
+  }
+
+  function doLogout() {
+    TOKEN = null;
+    clearInterval(refreshInterval);
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('dashboard-screen').style.display = 'none';
+    document.getElementById('login-pass').value = '';
+  }
+
+  function authHeaders() {
+    return { 'Authorization': `Bearer ${TOKEN}` };
+  }
+
+  function switchTab(tab, btn) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('lista-view').style.display = tab === 'lista' ? 'block' : 'none';
+    document.getElementById('map-view').style.display = tab === 'mapa' ? 'block' : 'none';
+    if (tab === 'mapa') initMap();
+  }
+
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTabla(allEquipos);
+  }
+
+  function setStatus(state, msg) {
+    const el = document.getElementById('status-indicator');
+    el.textContent = msg;
+    el.className = 'badge status-' + state;
+  }
+
+  function formatTs(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+    return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function abrirEnMaps(lat, lng) {
+    window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+  }
+
+  function renderTabla(equipos) {
+    const tbody = document.getElementById('tabla-equipos');
+    let filtered = equipos;
+    if (currentFilter === 'online')  filtered = equipos.filter(e => e.online);
+    if (currentFilter === 'offline') filtered = equipos.filter(e => !e.online);
+    if (currentFilter === 'sin_senal') {
+      filtered = equipos.filter(e => {
+        if (e.online) return false;
+        if (!e.ultimo_ping) return true;
+        const last = new Date(e.ultimo_ping + (e.ultimo_ping.endsWith('Z') ? '' : 'Z'));
+        const mins = (Date.now() - last.getTime()) / 60000;
+        return mins >= offlineAlertMinutes;
+      });
+    }
+    if (currentFilter === 'fuera')   filtered = equipos.filter(e => !e.dentro);
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>No hay equipos en esta categoria.</p></div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(e => `
+      <tr>
+        <td><div class="hostname">${e.hostname || '—'}</div><div class="device-id">${e.device_id.slice(0,8)}…</div></td>
+        <td><span class="ip">${e.serial_number || '—'}</span></td>
+        <td><span class="ssid">${e.asignado || '<span style="color:var(--text3)">Sin asignar</span>'}</span></td>
+        <td><span class="ip">${e.ip || '—'}</span></td>
+        <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
+        <td><span class="badge ${e.online ? 'badge-online' : 'badge-offline'}">${e.online ? 'online' : 'offline'}</span></td>
+        <td><span class="badge ${e.dentro ? 'badge-dentro' : 'badge-fuera'}">${e.dentro ? 'dentro' : 'fuera'}</span></td>
+        <td>${e.lat ? `<span class="coords">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}<br><span style="color:var(--amber-text)">±${Math.round(e.accuracy)}m</span></span>` : '<span style="color:var(--text3)">sin geo</span>'}</td>
+        <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
+        <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})">Ver</button>` : '—'}</td>
+        <td><button class="del-btn" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button></td>
+      </tr>
+    `).join('');
+  }
+
+  // ── MAPA ──
+  function initMap() {
+    if (!window.google) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=renderMap`;
+      script.async = true;
+      window.renderMap = renderMap;
+      document.head.appendChild(script);
+    } else {
+      renderMap();
+    }
+  }
+
+  function renderMap() {
+    const container = document.getElementById('map-container');
+    const equiposConGeo = allEquipos.filter(e => e.lat && e.lng);
+
+    const center = equiposConGeo.length > 0
+      ? { lat: equiposConGeo[0].lat, lng: equiposConGeo[0].lng }
+      : { lat: 20.0271, lng: -98.4794 };
+
+    if (!map) {
+      map = new google.maps.Map(container, {
+        zoom: 15,
+        center: center,
+        mapTypeId: 'roadmap',
+        styles: [
+          { elementType: 'geometry', stylers: [{ color: '#1e2128' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#8b8f9e' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#1e2128' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c3040' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e0f11' }] },
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+        ]
+      });
+    }
+
+    // Limpiar markers anteriores
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+
+    equiposConGeo.forEach(e => {
+      const color = !e.online ? '#555968' : e.dentro ? '#1d9e75' : '#e24b4a';
+
+      const marker = new google.maps.Marker({
+        position: { lat: e.lat, lng: e.lng },
+        map: map,
+        title: e.hostname,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: color,
+          fillOpacity: 1,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+        }
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="font-family: monospace; font-size: 13px; padding: 4px; color: #222;">
+            <strong>${e.hostname}</strong><br>
+            IP: ${e.ip}<br>
+            Red: ${e.ssid || '—'}<br>
+            Estado: ${e.online ? 'Online' : 'Offline'} / ${e.dentro ? 'Dentro' : 'Fuera'}<br>
+            Precision: ±${Math.round(e.accuracy || 0)}m<br>
+            Ultimo ping: ${formatTs(e.ultimo_ping)}
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => infoWindow.open(map, marker));
+
+      // Circulo de precision
+      new google.maps.Circle({
+        map: map,
+        center: { lat: e.lat, lng: e.lng },
+        radius: e.accuracy || 50,
+        fillColor: color,
+        fillOpacity: 0.1,
+        strokeColor: color,
+        strokeOpacity: 0.4,
+        strokeWeight: 1,
+      });
+
+      markers.push(marker);
+    });
+
+    if (equiposConGeo.length > 1) {
+      const bounds = new google.maps.LatLngBounds();
+      equiposConGeo.forEach(e => bounds.extend({ lat: e.lat, lng: e.lng }));
+      map.fitBounds(bounds);
+    }
+  }
+
+  async function eliminarEquipo(deviceId, hostname) {
+    if (!confirm(`¿Eliminar el equipo "${hostname || deviceId}"?\nEsto borrará el equipo y todo su historial de pings.`)) return;
+    try {
+      const res = await fetch(`${SERVER}/api/equipos/${deviceId}`, {
+        method: 'DELETE',
+        headers: authHeaders()
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Error al eliminar: ' + (err.detail || res.status));
+        return;
+      }
+      await fetchData();
+    } catch (err) {
+      alert('No se pudo conectar al servidor');
+    }
+  }
+
+
+  async function fetchData() {
+    if (!TOKEN) return;
+    setStatus('loading', 'actualizando...');
+    try {
+      const [resEquipos, resAlertas] = await Promise.all([
+        fetch(`${SERVER}/api/equipos`, { headers: authHeaders() }),
+        fetch(`${SERVER}/api/alertas`, { headers: authHeaders() })
+      ]);
+      if (resEquipos.status === 401) { doLogout(); return; }
+      if (!resEquipos.ok) throw new Error('HTTP ' + resEquipos.status);
+
+      const dataEquipos = await resEquipos.json();
+      const dataAlertas = await resAlertas.json();
+      allEquipos = dataEquipos.equipos || [];
+      offlineAlertMinutes = (dataAlertas.sin_senal && dataAlertas.sin_senal[0]?.minutos_sin_senal) || 10;
+
+      const total   = allEquipos.length;
+      const online  = allEquipos.filter(e => e.online).length;
+      const offline = total - online;
+      const fuera   = allEquipos.filter(e => !e.dentro).length;
+
+      document.getElementById('m-total').textContent  = total;
+      document.getElementById('m-online').textContent = online;
+      document.getElementById('m-offline').textContent = offline;
+      document.getElementById('m-fuera').textContent  = fuera;
+
+      const alertBanner = document.getElementById('alert-banner');
+      const fueraCount = dataAlertas.count_fuera ?? (dataAlertas.fuera || []).length;
+      const sinSenalCount = dataAlertas.count_sin_senal ?? (dataAlertas.sin_senal || []).length;
+      const totalAlertas = dataAlertas.count ?? (fueraCount + sinSenalCount);
+
+      if (totalAlertas > 0) {
+        alertBanner.classList.add('visible');
+        const fueraNames = (dataAlertas.fuera || []).map(f => f.hostname || f.device_id).join(', ');
+        const sinSenalNames = (dataAlertas.sin_senal || []).map(f => f.hostname || f.device_id).join(', ');
+        const partes = [];
+        if (fueraCount > 0) partes.push(`${fueraCount} fuera de red${fueraNames ? ` (${fueraNames})` : ''}`);
+        if (sinSenalCount > 0) partes.push(`${sinSenalCount} sin señal${sinSenalNames ? ` (${sinSenalNames})` : ''}`);
+        alertBanner.textContent = `Alerta: ${partes.join(' | ')}`;
+      } else {
+        alertBanner.classList.remove('visible');
+      }
+
+      renderTabla(allEquipos);
+      if (currentTab === 'mapa' && window.google) renderMap();
+      setStatus('ok', 'conectado');
+      document.getElementById('last-update').textContent = 'actualizado ' + new Date().toLocaleTimeString('es-MX');
+
+    } catch (err) {
+      setStatus('err', 'sin conexion');
+    }
+  }
+</script>
+</body>
+</html>

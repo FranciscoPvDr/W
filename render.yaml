@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: monitor-equipos-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: ""
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+        sync: false
+      - key: FIREBASE_CREDENTIALS_PATH
+        sync: false
+      - key: OFFICE_LAT
+        sync: false
+      - key: OFFICE_LNG
+        sync: false
+      - key: MAX_GEO_ACCURACY_M
+        value: "250"
+      - key: OFFLINE_ALERT_MINUTES
+        value: "10"
