@@ -42,7 +42,7 @@ except ImportError:
 SECRET_KEY         = "cambia-esta-clave-secreta-en-produccion-2024"
 ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = 8
-GOOGLE_API_KEY     = "AIzaSyCcGAhqaxgQRMxilFd5sYXIKvIzQq1DeKE"
+GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY", "")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
 OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
 OFFICE_LNG = float(os.getenv("OFFICE_LNG", "0") or 0)
@@ -59,8 +59,14 @@ app.add_middleware(
 )
 
 # ── Base de datos ──────────────────────────────────────────────────────────
-DATABASE_URL = "sqlite:///./equipos.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./equipos.db")
+# Render usa postgres:// pero SQLAlchemy necesita postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if DATABASE_URL.startswith("postgresql://"):
+    engine = create_engine(DATABASE_URL)
+else:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
