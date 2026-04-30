@@ -405,7 +405,7 @@ async def geolocate(wifi_networks: list):
         return None, None, None
     try:
         payload = {
-            "considerIp": True,
+            "considerIp": False,
             "wifiAccessPoints": [
                 {"macAddress": n.macAddress, "signalStrength": n.signalStrength}
                 for n in wifi_networks
