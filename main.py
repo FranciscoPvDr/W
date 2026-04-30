@@ -94,6 +94,22 @@ def _init_firebase():
         print("Firebase Admin no instalado. Instala: pip install firebase-admin")
         return None
 
+    # Opcion 1: credenciales como JSON en variable de entorno (para Render/cloud)
+    creds_json = os.getenv("FIREBASE_CREDENTIALS_JSON", "").strip()
+    if creds_json:
+        try:
+            import tempfile, json as _json
+            creds_dict = _json.loads(creds_json)
+            if not firebase_admin._apps:
+                cred = credentials.Certificate(creds_dict)
+                firebase_admin.initialize_app(cred)
+            print("Firebase Admin inicializado desde variable de entorno.")
+            return firestore.client()
+        except Exception as e:
+            print(f"Error inicializando Firebase desde env var: {e}")
+            return None
+
+    # Opcion 2: ruta a archivo JSON
     creds_path = _resolver_ruta_credenciales()
     if not creds_path:
         print("FIREBASE_CREDENTIALS_PATH no definido (y sin JSON local). Sync Firestore desactivado.")
