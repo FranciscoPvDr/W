@@ -42,7 +42,7 @@ async function cargar(){
   const res = await fetch(`${SERVER}/api/usuarios`,{headers:headers()});
   if(res.status===401){logout();return} if(res.status===403){location.href='/dashboard';return}
   const data = await res.json();
-  document.getElementById('tbody').innerHTML = (data.usuarios||[]).map(u=>`<tr><td>${u.username}<div class="msg">${u.email||''}</div></td><td>${u.nombre||''}</td><td><span class="badge">${roleLabel(u.role)}</span></td><td><select onchange="cambiarRol('${u.username}',this.value)"><option value="guardia" ${u.role==='guardia'?'selected':''}>Guardia</option><option value="ingeniero" ${u.role==='ingeniero'?'selected':''}>Ingeniero</option><option value="super_admin" ${u.role==='super_admin'?'selected':''}>Super Admin</option></select> <button class="danger" onclick="eliminarUsuario('${u.username}')">Eliminar</button></td></tr>`).join('');
+  document.getElementById('tbody').innerHTML = (data.usuarios||[]).map(u=>`<tr><td>${u.username}<div class="msg">${u.email||''}</div></td><td>${u.nombre||''}</td><td><span class="badge">${roleLabel(u.role)}</span></td><td><select onchange="cambiarRol('${u.username}',this.value)"><option value="guardia" ${u.role==='guardia'?'selected':''}>Guardia</option><option value="ingeniero" ${u.role==='ingeniero'?'selected':''}>Ingeniero</option><option value="super_admin" ${u.role==='super_admin'?'selected':''}>Super Admin</option></select> <button onclick="generarReset('${u.username}')">Reset</button> <button class="danger" onclick="eliminarUsuario('${u.username}')">Eliminar</button></td></tr>`).join('');
 }
 async function crearUsuario(){
   const payload={username:username.value.trim(),email:email.value.trim(),nombre:nombre.value.trim(),password:password.value,role:role.value};
@@ -57,6 +57,14 @@ async function eliminarUsuario(user){
   if(!confirm(`¿Eliminar usuario ${user}?`))return;
   const res=await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}`,{method:'DELETE',headers:headers()});
   if(!res.ok) alert('No se pudo eliminar'); cargar();
+}
+async function generarReset(user){
+  const res=await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}/reset-token`,{method:'POST',headers:headers()});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){alert(data.detail||'No se pudo generar link');return}
+  const url=`${SERVER}${data.reset_url}`;
+  await navigator.clipboard?.writeText(url).catch(()=>{});
+  prompt('Link de restablecimiento copiado. Compártelo con el usuario:', url);
 }
 cargar();
 </script>

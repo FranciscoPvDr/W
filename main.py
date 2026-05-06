@@ -29,6 +29,7 @@ from passlib.context import CryptContext
 import httpx
 import uuid
 import os
+import secrets
 
 try:
     import firebase_admin
@@ -184,6 +185,15 @@ def sync_usuario_to_firebase(usuario, password: Optional[str] = None):
         return None
 
 
+def actualizar_password_usuario(usuario, password_nueva: str):
+    usuario.password = pwd_context.hash(password_nueva)
+    if usuario.firebase_uid and auth is not None:
+        try:
+            auth.update_user(usuario.firebase_uid, password=password_nueva)
+        except Exception as e:
+            print(f"No se pudo actualizar password Firebase para {usuario.username}: {e}")
+
+
 class PingLog(Base):
     __tablename__ = "ping_logs"
     id        = Column(String, primary_key=True)
@@ -233,6 +243,8 @@ class Usuario(Base):
     role     = Column(String, default="ingeniero")
     email    = Column(String, nullable=True)
     firebase_uid = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True)
+    reset_expires = Column(DateTime, nullable=True)
     activo   = Column(Boolean, default=True)
 
 
@@ -275,6 +287,10 @@ def _ensure_sqlite_columns():
             conn.execute(text("ALTER TABLE usuarios ADD COLUMN email TEXT"))
         if "firebase_uid" not in usuarios_cols:
             conn.execute(text("ALTER TABLE usuarios ADD COLUMN firebase_uid TEXT"))
+        if "reset_token" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN reset_token TEXT"))
+        if "reset_expires" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN reset_expires DATETIME"))
         conn.execute(text("UPDATE usuarios SET role = 'super_admin' WHERE username = 'admin' AND (role IS NULL OR role = '')"))
         conn.commit()
 
@@ -368,6 +384,11 @@ class UsbPolicyUpdate(BaseModel):
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
+
+
+class ResetPasswordConfirm(BaseModel):
+    token: str
+    password_nueva: str
 
 
 def inferir_ubicacion(dentro: bool, ssid: Optional[str]) -> str:
@@ -668,7 +689,50 @@ def cambiar_password(data: CambiarPassword, usuario=Depends(get_usuario_actual))
         u = db.query(Usuario).filter_by(username=usuario["username"]).first()
         if not verificar_password(data.password_actual, u.password):
             raise HTTPException(status_code=400, detail="Contrasena actual incorrecta")
-        u.password = pwd_context.hash(data.password_nueva)
+        actualizar_password_usuario(u, data.password_nueva)
+        db.commit()
+        return {"ok": True, "mensaje": "Contrasena actualizada"}
+    finally:
+        db.close()
+
+
+@app.post("/api/usuarios/{username}/reset-token")
+def generar_reset_token(username: str, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    db = Session()
+    try:
+        u = db.query(Usuario).filter_by(username=username, activo=True).first()
+        if not u:
+            u = db.query(Usuario).filter_by(email=username, activo=True).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        token = secrets.token_urlsafe(32)
+        u.reset_token = token
+        u.reset_expires = datetime.utcnow() + timedelta(minutes=30)
+        db.commit()
+        return {
+            "ok": True,
+            "reset_url": f"/reset-password?token={token}",
+            "expires_at": u.reset_expires.isoformat()
+        }
+    finally:
+        db.close()
+
+
+@app.post("/api/password-reset/confirm")
+def confirmar_reset_password(data: ResetPasswordConfirm):
+    if len(data.password_nueva or "") < 6:
+        raise HTTPException(status_code=400, detail="La contrasena debe tener al menos 6 caracteres")
+    db = Session()
+    try:
+        u = db.query(Usuario).filter_by(reset_token=data.token, activo=True).first()
+        if not u or not u.reset_expires or u.reset_expires < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Token invalido o expirado")
+        if not u.firebase_uid:
+            sync_usuario_to_firebase(u)
+        actualizar_password_usuario(u, data.password_nueva)
+        u.reset_token = None
+        u.reset_expires = None
         db.commit()
         return {"ok": True, "mensaje": "Contrasena actualizada"}
     finally:
@@ -1106,6 +1170,11 @@ def guardia_page():
 @app.get("/login")
 def login_page():
     return FileResponse("login.html")
+
+
+@app.get("/reset-password")
+def reset_password_page():
+    return FileResponse("reset-password.html")
 
 
 @app.get("/")
