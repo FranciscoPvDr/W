@@ -45,7 +45,7 @@ SECRET_KEY         = "cambia-esta-clave-secreta-en-produccion-2024"
 ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY", "")
-FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", GOOGLE_API_KEY).strip()
+FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", GOOGLE_API_KEY or "AIzaSyAcBzbTSYAfrumE3BSpkZpFrq9Ih1TEV1k").strip()
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
 SUPER_ADMIN_EMAIL = "francisco.pavana@mundocharro.mx"
 OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
@@ -610,9 +610,9 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
     db = Session()
     try:
         username = form.username.strip()
-        usuario = db.query(Usuario).filter_by(username=username, activo=True).first()
+        usuario = db.query(Usuario).filter_by(username=username).first()
         if not usuario:
-            usuario = db.query(Usuario).filter_by(email=username, activo=True).first()
+            usuario = db.query(Usuario).filter_by(email=username).first()
         firebase_login = None
         if "@" in username:
             firebase_login = autenticar_firebase_email(username, form.password)
@@ -632,10 +632,11 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         elif firebase_login and usuario:
             usuario.email = firebase_login["email"]
             usuario.firebase_uid = usuario.firebase_uid or firebase_login["uid"]
+            usuario.activo = True
             if firebase_login["email"] == SUPER_ADMIN_EMAIL:
                 usuario.role = "super_admin"
             db.commit()
-        if not usuario or (not firebase_login and not verificar_password(form.password, usuario.password)):
+        if not usuario or not usuario.activo or (not firebase_login and not verificar_password(form.password, usuario.password)):
             raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
         role = usuario.role or "ingeniero"
         token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": role})
