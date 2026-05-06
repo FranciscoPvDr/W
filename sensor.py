@@ -279,8 +279,34 @@ def get_usb_storage_status():
     return blocked, devices, error
 
 
-def apply_usb_storage_policy():
-    if not BLOCK_USB_STORAGE:
+def fetch_usb_storage_policy(device_id):
+    try:
+        resp = requests.get(
+            f"{SERVER_URL}/api/equipos/{device_id}/usb-policy",
+            timeout=8,
+            headers=HEADERS
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("block_usb_storage")
+    except Exception as e:
+        log(f"No se pudo consultar politica USB remota: {e}")
+    return None
+
+
+def apply_usb_storage_policy(block_usb_storage):
+    if block_usb_storage is None:
+        block_usb_storage = BLOCK_USB_STORAGE
+    if not block_usb_storage:
+        if platform.system() == "Windows":
+            try:
+                _powershell("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -Value 3 -ErrorAction Stop")
+            except Exception as e:
+                blocked, devices, status_error = get_usb_storage_status()
+                msg = f"No se pudo habilitar USB; requiere ejecutar como administrador: {e}"
+                if status_error:
+                    msg = f"{msg} | {status_error}"
+                return blocked, devices, msg
         return get_usb_storage_status()
     if platform.system() != "Windows":
         return None, 0, "Bloqueo USB solo disponible en Windows"
@@ -432,7 +458,8 @@ def main():
             ssid          = get_wifi_ssid()
             dentro        = esta_en_red_empresa(ip, ssid)
             wifi_networks = scan_wifi_networks()
-            usb_status    = apply_usb_storage_policy()
+            usb_policy    = fetch_usb_storage_policy(device_id)
+            usb_status    = apply_usb_storage_policy(usb_policy)
 
             log(f"Redes encontradas: {len(wifi_networks)}")
             send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status)

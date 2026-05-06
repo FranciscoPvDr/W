@@ -818,9 +818,17 @@
 
   function usbLabel(e) {
     const state = e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
+    const policy = e.usb_storage_policy === true ? '<div class="accuracy">politica: bloquear</div>' : e.usb_storage_policy === false ? '<div class="accuracy">politica: habilitar</div>' : '';
     const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
     const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
-    return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${error}`;
+    return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${policy}${error}`;
+  }
+
+  function usbActionButton(e) {
+    if (currentRole !== 'super_admin') return '';
+    const shouldBlock = e.usb_storage_policy !== true;
+    const label = shouldBlock ? 'Bloquear USB' : 'Habilitar USB';
+    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
   }
 
   function renderTabla(equipos) {
@@ -864,7 +872,7 @@
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})">Ver</button>` : '—'}</td>
-        <td>${currentRole === 'super_admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
+        <td>${usbActionButton(e)} ${currentRole === 'super_admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
       </tr>
     `).join('');
   }
@@ -960,7 +968,11 @@
       const data = await res.json();
       const usuarios = data.usuarios || [];
       const listado = usuarios.map((u, i) => `${i + 1}. ${u.username} (${roleLabel(u.role)})`).join('\n');
-      const selected = prompt(`Usuarios:\n${listado}\n\nEscribe el numero de usuario a modificar:`);
+      const selected = prompt(`Usuarios:\n${listado}\n\nEscribe el numero de usuario a modificar o NUEVO para crear usuario:`);
+      if ((selected || '').trim().toLowerCase() === 'nuevo') {
+        await crearUsuarioConRol();
+        return;
+      }
       const index = Number(selected) - 1;
       if (!Number.isInteger(index) || !usuarios[index]) return;
       const role = prompt('Nuevo rol: guardia, ingeniero o super_admin', usuarios[index].role || 'ingeniero');
@@ -972,6 +984,39 @@
       });
       if (!update.ok) { const err = await update.json().catch(() => ({})); alert('Error: ' + (err.detail || update.status)); return; }
       alert('Rol actualizado');
+    } catch {
+      alert('No se pudo conectar al servidor');
+    }
+  }
+
+  async function crearUsuarioConRol() {
+    const username = prompt('Usuario nuevo:');
+    if (!username) return;
+    const nombre = prompt('Nombre para mostrar:', username) || username;
+    const password = prompt('Contraseña temporal, minimo 6 caracteres:');
+    if (!password || password.length < 6) { alert('Contraseña invalida'); return; }
+    const role = prompt('Rol: guardia, ingeniero o super_admin', 'guardia');
+    if (!['guardia', 'ingeniero', 'super_admin'].includes(role)) { alert('Rol invalido'); return; }
+    const res = await fetch(`${SERVER}/api/usuarios`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, nombre, password, role })
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
+    alert(`Usuario creado con rol ${roleLabel(role)}`);
+  }
+
+  async function actualizarUsbPolicy(deviceId, blockUsbStorage) {
+    const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
+    if (!confirm(`¿Quieres ${accion} almacenamiento USB en este equipo?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador.`)) return;
+    try {
+      const res = await fetch(`${SERVER}/api/equipos/${deviceId}/usb-policy`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ block_usb_storage: blockUsbStorage })
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
+      await fetchData();
     } catch {
       alert('No se pudo conectar al servidor');
     }

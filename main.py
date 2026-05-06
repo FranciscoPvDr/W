@@ -169,6 +169,7 @@ class Equipo(Base):
     lng         = Column(Float, nullable=True)
     accuracy    = Column(Float, nullable=True)
     usb_storage_blocked = Column(Boolean, nullable=True)
+    usb_storage_policy = Column(Boolean, nullable=True)
     usb_storage_devices = Column(Integer, nullable=True)
     usb_block_error = Column(String, nullable=True)
     usb_updated_at = Column(DateTime, nullable=True)
@@ -197,6 +198,8 @@ def _ensure_sqlite_columns():
             conn.execute(text("ALTER TABLE equipos ADD COLUMN serial_number TEXT"))
         if "usb_storage_blocked" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_blocked BOOLEAN"))
+        if "usb_storage_policy" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_policy BOOLEAN"))
         if "usb_storage_devices" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_devices INTEGER"))
         if "usb_block_error" not in equipos_cols:
@@ -277,6 +280,10 @@ class UsuarioCreate(BaseModel):
 
 class UsuarioRoleUpdate(BaseModel):
     role: str
+
+
+class UsbPolicyUpdate(BaseModel):
+    block_usb_storage: bool
 
 
 class CambiarPassword(BaseModel):
@@ -362,6 +369,7 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "lng": equipo.lng,
         "accuracy": equipo.accuracy,
         "usbStorageBlocked": equipo.usb_storage_blocked,
+        "usbStoragePolicy": equipo.usb_storage_policy,
         "usbStorageDevices": equipo.usb_storage_devices,
         "usbBlockError": equipo.usb_block_error or "",
         "usbUpdatedAt": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
@@ -660,6 +668,8 @@ async def recibir_ping(data: PingRequest):
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
             equipo.usb_storage_blocked = data.usb_storage_blocked
+            if equipo.usb_storage_policy is None and data.usb_storage_blocked is not None:
+                equipo.usb_storage_policy = data.usb_storage_blocked
             equipo.usb_storage_devices = data.usb_storage_devices
             equipo.usb_block_error = data.usb_block_error or ""
             equipo.usb_updated_at = ahora
@@ -682,6 +692,7 @@ async def recibir_ping(data: PingRequest):
                 lng         = lng,
                 accuracy    = accuracy,
                 usb_storage_blocked = data.usb_storage_blocked,
+                usb_storage_policy = data.usb_storage_blocked,
                 usb_storage_devices = data.usb_storage_devices,
                 usb_block_error = data.usb_block_error or "",
                 usb_updated_at = ahora
@@ -693,6 +704,18 @@ async def recibir_ping(data: PingRequest):
         geo = f"lat:{lat:.4f},lng:{lng:.4f},acc:{accuracy:.0f}m" if lat else "sin geo"
         print(f"Ping [{data.hostname}] {'DENTRO' if data.dentro else 'FUERA'} | {geo}")
         return {"ok": True, "mensaje": "Ping registrado", "geo": {"lat": lat, "lng": lng, "accuracy": accuracy}}
+    finally:
+        db.close()
+
+
+@app.get("/api/equipos/{device_id}/usb-policy")
+def obtener_usb_policy(device_id: str):
+    db = Session()
+    try:
+        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
+        if not equipo:
+            return {"block_usb_storage": None}
+        return {"block_usb_storage": equipo.usb_storage_policy}
     finally:
         db.close()
 
@@ -720,6 +743,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "lng":         e.lng,
                 "accuracy":    e.accuracy,
                 "usb_storage_blocked": e.usb_storage_blocked,
+                "usb_storage_policy": e.usb_storage_policy,
                 "usb_storage_devices": e.usb_storage_devices,
                 "usb_block_error": e.usb_block_error,
                 "usb_updated_at": e.usb_updated_at.isoformat() if e.usb_updated_at else None,
@@ -736,6 +760,23 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 })
             resultado.append(item)
         return {"equipos": resultado, "total": len(resultado)}
+    finally:
+        db.close()
+
+
+@app.patch("/api/equipos/{device_id}/usb-policy")
+def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    db = Session()
+    try:
+        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
+        if not equipo:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        equipo.usb_storage_policy = data.block_usb_storage
+        db.commit()
+        sync_equipo_to_firestore(equipo, equipo.serial_number)
+        accion = "bloquear" if data.block_usb_storage else "habilitar"
+        return {"ok": True, "mensaje": f"Politica USB actualizada: {accion}", "block_usb_storage": data.block_usb_storage}
     finally:
         db.close()
 
