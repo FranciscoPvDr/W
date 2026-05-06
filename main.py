@@ -205,6 +205,7 @@ def autenticar_firebase_email(email: str, password: str):
             timeout=10
         )
         if resp.status_code != 200:
+            print(f"Firebase Auth login fallo para {email}: {resp.status_code} {resp.text[:300]}")
             return None
         data = resp.json()
         return {"uid": data.get("localId"), "email": data.get("email", email).lower()}
@@ -408,6 +409,11 @@ class CambiarPassword(BaseModel):
 class ResetPasswordConfirm(BaseModel):
     token: str
     password_nueva: str
+
+
+class DebugFirebaseLogin(BaseModel):
+    email: str
+    password: str
 
 
 def inferir_ubicacion(dentro: bool, ssid: Optional[str]) -> str:
@@ -782,6 +788,29 @@ def confirmar_reset_password(data: ResetPasswordConfirm):
         return {"ok": True, "mensaje": "Contrasena actualizada"}
     finally:
         db.close()
+
+
+@app.post("/api/debug/firebase-login")
+def debug_firebase_login(data: DebugFirebaseLogin, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    if not FIREBASE_WEB_API_KEY:
+        return {"ok": False, "error": "FIREBASE_WEB_API_KEY no configurada"}
+    try:
+        resp = httpx.post(
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_WEB_API_KEY}",
+            json={"email": data.email.strip(), "password": data.password, "returnSecureToken": True},
+            timeout=10
+        )
+        payload = resp.json()
+        if resp.status_code == 200:
+            return {"ok": True, "email": payload.get("email"), "uid": payload.get("localId")}
+        return {
+            "ok": False,
+            "status": resp.status_code,
+            "firebase_error": payload.get("error", {}).get("message", "unknown")
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ── Endpoint del sensor (sin autenticacion) ────────────────────────────────
