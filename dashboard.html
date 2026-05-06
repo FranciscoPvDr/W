@@ -647,6 +647,7 @@
         <div class="user-avatar" id="user-avatar">A</div>
         <span id="user-display"></span>
       </div>
+      <button class="logout-btn" id="roles-btn" onclick="gestionarRoles()" style="display:none">Roles</button>
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -702,11 +703,11 @@
             <tr>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
               <th>IP</th><th>Red / SSID</th><th>Estado</th>
-              <th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
+              <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
-            <tr><td colspan="10"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
+            <tr><td colspan="11"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -730,7 +731,7 @@
 
   const GOOGLE_API_KEY = 'AIzaSyCcGAhqaxgQRMxilFd5sYXIKvIzQq1DeKE';
 
-  let TOKEN = null, currentFilter = 'todos', allEquipos = [];
+  let TOKEN = null, currentRole = 'ingeniero', currentFilter = 'todos', allEquipos = [];
   let refreshInterval = null, map = null, markers = [];
   let currentTab = 'lista', offlineAlertMinutes = 10;
 
@@ -753,9 +754,11 @@
       if (!res.ok) { errEl.style.display = 'block'; return; }
       const data = await res.json();
       TOKEN = data.access_token;
+      currentRole = data.role || 'ingeniero';
       const nombre = data.nombre || user;
-      document.getElementById('user-display').textContent = nombre;
+      document.getElementById('user-display').textContent = `${nombre} · ${roleLabel(currentRole)}`;
       document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
+      document.getElementById('roles-btn').style.display = currentRole === 'super_admin' ? 'inline-block' : 'none';
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard-screen').style.display = 'block';
       fetchData();
@@ -772,6 +775,7 @@
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('dashboard-screen').style.display = 'none';
     document.getElementById('login-pass').value = '';
+    document.getElementById('roles-btn').style.display = 'none';
   }
 
   function authHeaders() { return { 'Authorization': `Bearer ${TOKEN}` }; }
@@ -806,6 +810,19 @@
 
   function abrirEnMaps(lat, lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
 
+  function roleLabel(role) {
+    if (role === 'guardia') return 'Guardia';
+    if (role === 'super_admin') return 'Super Admin';
+    return 'Ingeniero';
+  }
+
+  function usbLabel(e) {
+    const state = e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
+    const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
+    const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
+    return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${error}`;
+  }
+
   function renderTabla(equipos) {
     const tbody = document.getElementById('tabla-equipos');
     let filtered = equipos;
@@ -820,7 +837,7 @@
     if (currentFilter === 'fuera') filtered = equipos.filter(e => !e.dentro);
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
       return;
     }
 
@@ -840,13 +857,14 @@
             <span class="badge ${e.dentro ? 'badge-dentro' : 'badge-fuera'}">${e.dentro ? 'dentro' : 'fuera'}</span>
           </div>
         </td>
+        <td>${usbLabel(e)}</td>
         <td>${e.lat
           ? `<div class="coords">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div><div class="accuracy">±${Math.round(e.accuracy)}m</div>`
           : `<span style="font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--text3)">sin geo</span>`}
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})">Ver</button>` : '—'}</td>
-        <td><button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button></td>
+        <td>${currentRole === 'super_admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
       </tr>
     `).join('');
   }
@@ -932,6 +950,31 @@
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
       await fetchData();
     } catch { alert('No se pudo conectar al servidor'); }
+  }
+
+  async function gestionarRoles() {
+    if (currentRole !== 'super_admin') return;
+    try {
+      const res = await fetch(`${SERVER}/api/usuarios`, { headers: authHeaders() });
+      if (!res.ok) { alert('No se pudieron cargar usuarios'); return; }
+      const data = await res.json();
+      const usuarios = data.usuarios || [];
+      const listado = usuarios.map((u, i) => `${i + 1}. ${u.username} (${roleLabel(u.role)})`).join('\n');
+      const selected = prompt(`Usuarios:\n${listado}\n\nEscribe el numero de usuario a modificar:`);
+      const index = Number(selected) - 1;
+      if (!Number.isInteger(index) || !usuarios[index]) return;
+      const role = prompt('Nuevo rol: guardia, ingeniero o super_admin', usuarios[index].role || 'ingeniero');
+      if (!['guardia', 'ingeniero', 'super_admin'].includes(role)) { alert('Rol invalido'); return; }
+      const update = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(usuarios[index].username)}/role`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      if (!update.ok) { const err = await update.json().catch(() => ({})); alert('Error: ' + (err.detail || update.status)); return; }
+      alert('Rol actualizado');
+    } catch {
+      alert('No se pudo conectar al servidor');
+    }
   }
 
   async function fetchData() {

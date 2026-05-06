@@ -14,6 +14,7 @@ import sys
 import json
 import platform
 import subprocess
+CREATE_NO_WINDOW = 0x08000000  # Ocultar ventanas CMD en Windows
 import re
 import traceback
 from datetime import datetime
@@ -25,6 +26,7 @@ from datetime import datetime
 DEFAULT_SERVER_URL = "https://mountable-heroics-doorpost.ngrok-free.dev"
 DEFAULT_PING_INTERVAL = 30
 DEFAULT_EMPRESA_RED = "192.168.80."
+DEFAULT_BLOCK_USB_STORAGE = False
 DEFAULT_WIFI_EMPRESAS = [
     "Comite IA",
     "MC emegencia",
@@ -53,6 +55,7 @@ LOG_FILE = os.path.join(LOG_DIR, "sensor.log")
 SERVER_URL = DEFAULT_SERVER_URL
 PING_INTERVAL = DEFAULT_PING_INTERVAL
 EMPRESA_RED = DEFAULT_EMPRESA_RED
+BLOCK_USB_STORAGE = DEFAULT_BLOCK_USB_STORAGE
 WIFI_EMPRESAS = list(DEFAULT_WIFI_EMPRESAS)
 
 # ─────────────────────────────────────────────
@@ -90,7 +93,7 @@ def cargar_config():
     """
     Carga configuración opcional desde sensor_config.json.
     """
-    global SERVER_URL, PING_INTERVAL, EMPRESA_RED, WIFI_EMPRESAS
+    global SERVER_URL, PING_INTERVAL, EMPRESA_RED, WIFI_EMPRESAS, BLOCK_USB_STORAGE
 
     config_path = os.path.join(_base_dir(), "sensor_config.json")
     if not os.path.exists(config_path):
@@ -107,6 +110,7 @@ def cargar_config():
             PING_INTERVAL = 10
 
         EMPRESA_RED = str(cfg.get("EMPRESA_RED", DEFAULT_EMPRESA_RED)).strip() or DEFAULT_EMPRESA_RED
+        BLOCK_USB_STORAGE = bool(cfg.get("BLOCK_USB_STORAGE", DEFAULT_BLOCK_USB_STORAGE))
         wifi_cfg = cfg.get("WIFI_EMPRESAS", DEFAULT_WIFI_EMPRESAS)
         if isinstance(wifi_cfg, list) and wifi_cfg:
             WIFI_EMPRESAS = [str(x).strip() for x in wifi_cfg if str(x).strip()]
@@ -134,7 +138,9 @@ def _powershell(cmd):
         stderr=subprocess.DEVNULL,
         encoding="utf-8",
         errors="ignore"
-    )
+    ,
+                creationflags=CREATE_NO_WINDOW
+            )
     return output.strip()
 
 
@@ -166,6 +172,8 @@ def get_wifi_ssid():
         if sistema == "Windows":
             output = subprocess.check_output(
                 ["netsh", "wlan", "show", "interfaces"], text=True, stderr=subprocess.DEVNULL
+            ,
+                creationflags=CREATE_NO_WINDOW
             )
             for line in output.split("\n"):
                 if "SSID" in line and "BSSID" not in line:
@@ -174,12 +182,16 @@ def get_wifi_ssid():
             output = subprocess.check_output(
                 ["/System/Library/PrivateFrameworks/Apple80211.framework/"
                  "Versions/Current/Resources/airport", "-I"], text=True
+            ,
+                creationflags=CREATE_NO_WINDOW
             )
             for line in output.split("\n"):
                 if " SSID:" in line:
                     return line.split(":")[1].strip()
         elif sistema == "Linux":
-            output = subprocess.check_output(["iwgetid", "-r"], text=True)
+            output = subprocess.check_output(["iwgetid", "-r"], text=True,
+                creationflags=CREATE_NO_WINDOW
+            )
             return output.strip()
     except Exception:
         pass
@@ -199,7 +211,9 @@ def scan_wifi_networks():
         output = subprocess.check_output(
             ["netsh", "wlan", "show", "networks", "mode=bssid"],
             text=True, stderr=subprocess.DEVNULL, encoding="utf-8", errors="ignore"
-        )
+        ,
+                creationflags=CREATE_NO_WINDOW
+            )
 
         bssid = None
 
@@ -246,6 +260,41 @@ def esta_en_red_empresa(ip, ssid):
     return False
 
 
+def get_usb_storage_status():
+    if platform.system() != "Windows":
+        return None, 0, "Solo disponible en Windows"
+    error = ""
+    blocked = None
+    devices = 0
+    try:
+        start_value = _powershell("(Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -ErrorAction Stop).Start")
+        blocked = str(start_value).strip() == "4"
+    except Exception as e:
+        error = f"No se pudo leer estado USB: {e}"
+    try:
+        devices_value = _powershell("(Get-PnpDevice -Class USB -PresentOnly -ErrorAction SilentlyContinue | Measure-Object).Count")
+        devices = int(str(devices_value).strip() or "0")
+    except Exception:
+        devices = 0
+    return blocked, devices, error
+
+
+def apply_usb_storage_policy():
+    if not BLOCK_USB_STORAGE:
+        return get_usb_storage_status()
+    if platform.system() != "Windows":
+        return None, 0, "Bloqueo USB solo disponible en Windows"
+    try:
+        _powershell("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -Value 4 -ErrorAction Stop")
+    except Exception as e:
+        blocked, devices, status_error = get_usb_storage_status()
+        msg = f"No se pudo bloquear USB; requiere ejecutar como administrador: {e}"
+        if status_error:
+            msg = f"{msg} | {status_error}"
+        return blocked, devices, msg
+    return get_usb_storage_status()
+
+
 def get_hostname():
     return socket.gethostname()
 
@@ -266,7 +315,9 @@ def get_serial_number():
                     stderr=subprocess.DEVNULL,
                     encoding="utf-8",
                     errors="ignore"
-                )
+                ,
+                creationflags=CREATE_NO_WINDOW
+            )
                 lines = [line.strip() for line in output.splitlines() if line.strip()]
                 for line in lines:
                     if line.lower() != "serialnumber":
@@ -314,6 +365,8 @@ def get_serial_number():
                 ["system_profiler", "SPHardwareDataType"],
                 text=True,
                 stderr=subprocess.DEVNULL
+            ,
+                creationflags=CREATE_NO_WINDOW
             )
             for line in output.splitlines():
                 if "Serial Number" in line:
@@ -325,7 +378,8 @@ def get_serial_number():
     return "", "none"
 
 
-def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks):
+def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status):
+    usb_blocked, usb_devices, usb_error = usb_status
     payload = {
         "device_id":     device_id,
         "serial_number": serial_number,
@@ -336,7 +390,10 @@ def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_ne
         "dentro":        dentro,
         "sistema":       platform.system(),
         "timestamp":     datetime.utcnow().isoformat(),
-        "wifi_networks": wifi_networks
+        "wifi_networks": wifi_networks,
+        "usb_storage_blocked": usb_blocked,
+        "usb_storage_devices": usb_devices,
+        "usb_block_error": usb_error
     }
     try:
         resp = requests.post(
@@ -346,7 +403,10 @@ def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_ne
             headers=HEADERS       # <-- FIX: header ngrok-skip-browser-warning
         )
         estado = "DENTRO  OK" if dentro else "FUERA   !!"
-        log(f"{estado} | IP: {ip} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | HTTP {resp.status_code}")
+        usb_txt = "USB bloqueado" if usb_blocked else "USB permitido"
+        if usb_error:
+            usb_txt = f"{usb_txt} ({usb_error})"
+        log(f"{estado} | IP: {ip} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | {usb_txt} | HTTP {resp.status_code}")
     except requests.exceptions.ConnectionError:
         log(f"Sin conexion al servidor - reintentando en {PING_INTERVAL}s")
     except Exception as e:
@@ -361,6 +421,7 @@ def main():
     log(f"Identificador HW: {serial_number or 'no detectado'} ({serial_source})")
     log(f"Servidor: {SERVER_URL}")
     log(f"Intervalo: {PING_INTERVAL}s")
+    log(f"Bloqueo almacenamiento USB: {'activo' if BLOCK_USB_STORAGE else 'solo monitoreo'}")
 
     while True:
         try:
@@ -371,9 +432,10 @@ def main():
             ssid          = get_wifi_ssid()
             dentro        = esta_en_red_empresa(ip, ssid)
             wifi_networks = scan_wifi_networks()
+            usb_status    = apply_usb_storage_policy()
 
             log(f"Redes encontradas: {len(wifi_networks)}")
-            send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks)
+            send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status)
         except Exception as e:
             log(f"Error ciclo principal: {e}")
             log(traceback.format_exc())

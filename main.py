@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, text
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Integer, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -149,6 +149,9 @@ class PingLog(Base):
     lat       = Column(Float, nullable=True)
     lng       = Column(Float, nullable=True)
     accuracy  = Column(Float, nullable=True)
+    usb_storage_blocked = Column(Boolean, nullable=True)
+    usb_storage_devices = Column(Integer, nullable=True)
+    usb_block_error = Column(String, nullable=True)
 
 
 class Equipo(Base):
@@ -165,6 +168,10 @@ class Equipo(Base):
     lat         = Column(Float, nullable=True)
     lng         = Column(Float, nullable=True)
     accuracy    = Column(Float, nullable=True)
+    usb_storage_blocked = Column(Boolean, nullable=True)
+    usb_storage_devices = Column(Integer, nullable=True)
+    usb_block_error = Column(String, nullable=True)
+    usb_updated_at = Column(DateTime, nullable=True)
 
 
 class Usuario(Base):
@@ -173,6 +180,7 @@ class Usuario(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     nombre   = Column(String)
+    role     = Column(String, default="ingeniero")
     activo   = Column(Boolean, default=True)
 
 
@@ -187,10 +195,29 @@ def _ensure_sqlite_columns():
         equipos_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(equipos)"))}
         if "serial_number" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN serial_number TEXT"))
+        if "usb_storage_blocked" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_blocked BOOLEAN"))
+        if "usb_storage_devices" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_devices INTEGER"))
+        if "usb_block_error" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_block_error TEXT"))
+        if "usb_updated_at" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_updated_at DATETIME"))
 
         ping_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(ping_logs)"))}
         if "serial_number" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN serial_number TEXT"))
+        if "usb_storage_blocked" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_blocked BOOLEAN"))
+        if "usb_storage_devices" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_devices INTEGER"))
+        if "usb_block_error" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_block_error TEXT"))
+
+        usuarios_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(usuarios)"))}
+        if "role" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'ingeniero'"))
+        conn.execute(text("UPDATE usuarios SET role = 'super_admin' WHERE username = 'admin' AND (role IS NULL OR role = '')"))
         conn.commit()
 
 
@@ -208,6 +235,7 @@ def crear_admin():
                 username = "admin",
                 password = pwd_context.hash("admin123"),
                 nombre   = "Administrador",
+                role     = "super_admin",
                 activo   = True
             )
             db.add(admin)
@@ -235,12 +263,20 @@ class PingRequest(BaseModel):
     sistema:       Optional[str] = ""
     timestamp:     str
     wifi_networks: Optional[List[WifiNetwork]] = []
+    usb_storage_blocked: Optional[bool] = None
+    usb_storage_devices: Optional[int] = None
+    usb_block_error: Optional[str] = ""
 
 
 class UsuarioCreate(BaseModel):
     username: str
     password: str
     nombre:   str
+    role:     Optional[str] = "ingeniero"
+
+
+class UsuarioRoleUpdate(BaseModel):
+    role: str
 
 
 class CambiarPassword(BaseModel):
@@ -325,6 +361,10 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "lat": equipo.lat,
         "lng": equipo.lng,
         "accuracy": equipo.accuracy,
+        "usbStorageBlocked": equipo.usb_storage_blocked,
+        "usbStorageDevices": equipo.usb_storage_devices,
+        "usbBlockError": equipo.usb_block_error or "",
+        "usbUpdatedAt": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
         "ultimoPing": ultimo_ping_iso,
         "primerPing": primer_ping_iso,
         "actualizadoEn": datetime.utcnow().isoformat(),
@@ -393,9 +433,18 @@ def get_usuario_actual(token: str = Depends(oauth2_scheme)):
         usuario = db.query(Usuario).filter_by(username=username, activo=True).first()
         if not usuario:
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
-        return {"username": usuario.username, "nombre": usuario.nombre}
+        return {"username": usuario.username, "nombre": usuario.nombre, "role": usuario.role or "ingeniero"}
     finally:
         db.close()
+
+
+def exigir_super_admin(usuario):
+    if usuario.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Solo super admin puede realizar esta accion")
+
+
+def puede_ver_inventario(usuario):
+    return usuario.get("role") != "guardia"
 
 
 # ── Geolocalización Google ─────────────────────────────────────────────────
@@ -436,8 +485,9 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         usuario = db.query(Usuario).filter_by(username=form.username, activo=True).first()
         if not usuario or not verificar_password(form.password, usuario.password):
             raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
-        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre})
-        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre}
+        role = usuario.role or "ingeniero"
+        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": role})
+        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "role": role}
     finally:
         db.close()
 
@@ -449,6 +499,9 @@ def me(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/usuarios")
 def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    if data.role not in {"guardia", "ingeniero", "super_admin"}:
+        raise HTTPException(status_code=400, detail="Rol invalido")
     db = Session()
     try:
         existe = db.query(Usuario).filter_by(username=data.username).first()
@@ -459,6 +512,7 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
             username = data.username,
             password = pwd_context.hash(data.password),
             nombre   = data.nombre,
+            role     = data.role or "ingeniero",
             activo   = True
         )
         db.add(nuevo)
@@ -470,16 +524,18 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
 
 @app.get("/api/usuarios")
 def listar_usuarios(usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
     db = Session()
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
-        return {"usuarios": [{"username": u.username, "nombre": u.nombre} for u in usuarios]}
+        return {"usuarios": [{"username": u.username, "nombre": u.nombre, "role": u.role or "ingeniero"} for u in usuarios]}
     finally:
         db.close()
 
 
 @app.delete("/api/usuarios/{username}")
 def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
     if username == "admin":
         raise HTTPException(status_code=400, detail="No se puede eliminar el admin")
     db = Session()
@@ -490,6 +546,23 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
         u.activo = False
         db.commit()
         return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
+    finally:
+        db.close()
+
+
+@app.patch("/api/usuarios/{username}/role")
+def actualizar_role_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    if data.role not in {"guardia", "ingeniero", "super_admin"}:
+        raise HTTPException(status_code=400, detail="Rol invalido")
+    db = Session()
+    try:
+        u = db.query(Usuario).filter_by(username=username, activo=True).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        u.role = data.role
+        db.commit()
+        return {"ok": True, "mensaje": f"Rol actualizado para {username}", "role": data.role}
     finally:
         db.close()
 
@@ -554,7 +627,10 @@ async def recibir_ping(data: PingRequest):
             timestamp = ahora,
             lat       = lat,
             lng       = lng,
-            accuracy  = accuracy
+            accuracy  = accuracy,
+            usb_storage_blocked = data.usb_storage_blocked,
+            usb_storage_devices = data.usb_storage_devices,
+            usb_block_error = data.usb_block_error or ""
         )
         db.add(log)
 
@@ -583,6 +659,10 @@ async def recibir_ping(data: PingRequest):
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
+            equipo.usb_storage_blocked = data.usb_storage_blocked
+            equipo.usb_storage_devices = data.usb_storage_devices
+            equipo.usb_block_error = data.usb_block_error or ""
+            equipo.usb_updated_at = ahora
             if lat:
                 equipo.lat      = lat
                 equipo.lng      = lng
@@ -600,7 +680,11 @@ async def recibir_ping(data: PingRequest):
                 primer_ping = ahora,
                 lat         = lat,
                 lng         = lng,
-                accuracy    = accuracy
+                accuracy    = accuracy,
+                usb_storage_blocked = data.usb_storage_blocked,
+                usb_storage_devices = data.usb_storage_devices,
+                usb_block_error = data.usb_block_error or "",
+                usb_updated_at = ahora
             )
             db.add(equipo)
 
@@ -625,24 +709,32 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
         for e in equipos:
             online = e.ultimo_ping >= limite_offline if e.ultimo_ping else False
             asignacion = _obtener_asignacion_firestore(e)
-            resultado.append({
+            item = {
                 "device_id":   e.device_id,
                 "serial_number": e.serial_number,
-                "numInventario": asignacion.get("numInventario", ""),
-                "asignado": asignacion.get("asignado", ""),
-                "departamento": asignacion.get("departamento", ""),
-                "puesto": asignacion.get("puesto", ""),
                 "hostname":    e.hostname,
-                "ip":          e.ip,
-                "ssid":        e.ssid,
                 "dentro":      e.dentro,
                 "online":      online,
-                "sistema":     e.sistema,
                 "ultimo_ping": e.ultimo_ping.isoformat() if e.ultimo_ping else None,
                 "lat":         e.lat,
                 "lng":         e.lng,
                 "accuracy":    e.accuracy,
-            })
+                "usb_storage_blocked": e.usb_storage_blocked,
+                "usb_storage_devices": e.usb_storage_devices,
+                "usb_block_error": e.usb_block_error,
+                "usb_updated_at": e.usb_updated_at.isoformat() if e.usb_updated_at else None,
+            }
+            if puede_ver_inventario(usuario):
+                item.update({
+                    "numInventario": asignacion.get("numInventario", ""),
+                    "asignado": asignacion.get("asignado", ""),
+                    "departamento": asignacion.get("departamento", ""),
+                    "puesto": asignacion.get("puesto", ""),
+                    "ip": e.ip,
+                    "ssid": e.ssid,
+                    "sistema": e.sistema,
+                })
+            resultado.append(item)
         return {"equipos": resultado, "total": len(resultado)}
     finally:
         db.close()
@@ -654,6 +746,7 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     Elimina un equipo de la BD (y su historial de pings).
     Útil para limpiar duplicados o equipos dados de baja.
     """
+    exigir_super_admin(usuario)
     db = Session()
     try:
         equipo = db.query(Equipo).filter_by(device_id=device_id).first()
