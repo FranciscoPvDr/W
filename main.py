@@ -1001,6 +1001,27 @@ def debug_ultimos_pings(limite: int = 20, usuario=Depends(get_usuario_actual)):
 def dashboard():
     return FileResponse("dashboard.html")
 
+
+@app.get("/equipos")
+def equipos_page():
+    return FileResponse("equipos.html")
+
+
+@app.get("/usuarios")
+def usuarios_page():
+    return FileResponse("usuarios.html")
+
+
+@app.get("/guardia")
+def guardia_page():
+    return FileResponse("guardia.html")
+
+
+@app.get("/login")
+def login_page():
+    return FileResponse("login.html")
+
+
 @app.get("/")
 def root():
-    return {"estado": "Monitor de equipos activo", "version": "3.0"}
+    return FileResponse("login.html")

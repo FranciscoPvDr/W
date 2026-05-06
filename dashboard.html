@@ -647,7 +647,9 @@
         <div class="user-avatar" id="user-avatar">A</div>
         <span id="user-display"></span>
       </div>
-      <button class="logout-btn" id="roles-btn" onclick="gestionarRoles()" style="display:none">Roles</button>
+      <button class="logout-btn" onclick="window.location.href='/equipos'">Equipos</button>
+      <button class="logout-btn" onclick="window.location.href='/guardia'">Guardia</button>
+      <button class="logout-btn" id="roles-btn" onclick="window.location.href='/usuarios'" style="display:none">Usuarios</button>
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -735,7 +737,31 @@
   let refreshInterval = null, map = null, markers = [];
   let currentTab = 'lista', offlineAlertMinutes = 10;
 
-  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  function startDashboardSession(token, role, nombre) {
+    TOKEN = token;
+    currentRole = role || 'ingeniero';
+    const displayName = nombre || localStorage.getItem('monitor_username') || 'Usuario';
+    document.getElementById('user-display').textContent = `${displayName} · ${roleLabel(currentRole)}`;
+    document.getElementById('user-avatar').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('roles-btn').style.display = currentRole === 'super_admin' ? 'inline-block' : 'none';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard-screen').style.display = 'block';
+    fetchData();
+    clearInterval(refreshInterval);
+    refreshInterval = setInterval(fetchData, 30000);
+  }
+
+  function initSession() {
+    const savedToken = localStorage.getItem('monitor_token');
+    if (!savedToken) {
+      window.location.href = '/login';
+      return;
+    }
+    startDashboardSession(savedToken, localStorage.getItem('monitor_role'), localStorage.getItem('monitor_nombre'));
+  }
+
+  const loginPass = document.getElementById('login-pass');
+  if (loginPass) loginPass.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
   async function doLogin() {
     const user = document.getElementById('login-user').value.trim();
@@ -753,16 +779,12 @@
       });
       if (!res.ok) { errEl.style.display = 'block'; return; }
       const data = await res.json();
-      TOKEN = data.access_token;
-      currentRole = data.role || 'ingeniero';
       const nombre = data.nombre || user;
-      document.getElementById('user-display').textContent = `${nombre} · ${roleLabel(currentRole)}`;
-      document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
-      document.getElementById('roles-btn').style.display = currentRole === 'super_admin' ? 'inline-block' : 'none';
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('dashboard-screen').style.display = 'block';
-      fetchData();
-      refreshInterval = setInterval(fetchData, 30000);
+      localStorage.setItem('monitor_token', data.access_token);
+      localStorage.setItem('monitor_role', data.role || 'ingeniero');
+      localStorage.setItem('monitor_nombre', nombre);
+      localStorage.setItem('monitor_username', user);
+      startDashboardSession(data.access_token, data.role, nombre);
     } catch {
       errEl.textContent = 'No se pudo conectar al servidor';
       errEl.style.display = 'block';
@@ -771,11 +793,12 @@
 
   function doLogout() {
     TOKEN = null;
+    localStorage.removeItem('monitor_token');
+    localStorage.removeItem('monitor_role');
+    localStorage.removeItem('monitor_nombre');
+    localStorage.removeItem('monitor_username');
     clearInterval(refreshInterval);
-    document.getElementById('login-screen').style.display = 'flex';
-    document.getElementById('dashboard-screen').style.display = 'none';
-    document.getElementById('login-pass').value = '';
-    document.getElementById('roles-btn').style.display = 'none';
+    window.location.href = '/login';
   }
 
   function authHeaders() { return { 'Authorization': `Bearer ${TOKEN}` }; }
@@ -1076,6 +1099,8 @@
       document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-MX');
     } catch { setStatus('err', 'sin conexión'); }
   }
+
+  initSession();
 </script>
 </body>
 </html>

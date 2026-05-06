@@ -294,6 +294,36 @@ def fetch_usb_storage_policy(device_id):
     return None
 
 
+def eject_usb_storage_volumes():
+    if platform.system() != "Windows":
+        return ""
+    script = r"""
+$volumes = Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 -and $_.DeviceID }
+$ejected = @()
+foreach ($volume in $volumes) {
+    $drive = $volume.DeviceID
+    try {
+        $shell = New-Object -ComObject Shell.Application
+        $folder = $shell.Namespace(17)
+        $item = $folder.ParseName($drive + "\")
+        if ($item -ne $null) {
+            $item.InvokeVerb("Eject")
+            $ejected += $drive
+        }
+    } catch {
+        Write-Output ("ERROR " + $drive + ": " + $_.Exception.Message)
+    }
+}
+if ($ejected.Count -gt 0) {
+    Write-Output ("Expulsadas: " + ($ejected -join ", "))
+}
+"""
+    try:
+        return _powershell(script).strip()
+    except Exception as e:
+        return f"No se pudieron expulsar USB conectadas: {e}"
+
+
 def apply_usb_storage_policy(block_usb_storage):
     if block_usb_storage is None:
         block_usb_storage = BLOCK_USB_STORAGE
@@ -312,13 +342,18 @@ def apply_usb_storage_policy(block_usb_storage):
         return None, 0, "Bloqueo USB solo disponible en Windows"
     try:
         _powershell("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -Value 4 -ErrorAction Stop")
+        eject_msg = eject_usb_storage_volumes()
     except Exception as e:
         blocked, devices, status_error = get_usb_storage_status()
         msg = f"No se pudo bloquear USB; requiere ejecutar como administrador: {e}"
         if status_error:
             msg = f"{msg} | {status_error}"
         return blocked, devices, msg
-    return get_usb_storage_status()
+    blocked, devices, status_error = get_usb_storage_status()
+    msg = status_error
+    if eject_msg:
+        msg = f"{msg} | {eject_msg}" if msg else eject_msg
+    return blocked, devices, msg
 
 
 def get_hostname():

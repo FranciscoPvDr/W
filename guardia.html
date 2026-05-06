@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guardia · Monitor</title>
+  <style>
+    :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#f0f6fc;--muted:#8b949e;--blue:#58a6ff;--green:#238636;--red:#da3633}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center}.nav a,.nav button{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1100px;margin:auto}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px}.metric,.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}.num{font-size:2.2rem;font-weight:900}.muted{color:var(--muted)}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid var(--border);text-align:left}th{color:var(--muted);font-size:.75rem;text-transform:uppercase}.badge{padding:4px 8px;border-radius:999px;font-size:.75rem}.ok{background:#23863633;color:#7ee787}.bad{background:#da363333;color:#ff7b72}@media(max-width:850px){.metrics{grid-template-columns:1fr}header{flex-direction:column;gap:12px;align-items:flex-start}.nav{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+<header><div class="brand">Monitor · Guardia</div><nav class="nav"><a href="/dashboard">Dashboard</a><a href="/equipos">Equipos</a><a class="active" href="/guardia">Guardia</a><button onclick="logout()">Salir</button></nav></header>
+<main>
+  <section class="metrics"><div class="metric"><div class="muted">Laptops registradas</div><div class="num" id="total">0</div></div><div class="metric"><div class="muted">Dentro del rancho</div><div class="num" id="dentro">0</div></div><div class="metric"><div class="muted">Fuera / revisar</div><div class="num" id="fuera">0</div></div></section>
+  <section class="card"><h2>Resumen de salida</h2><table><thead><tr><th>Equipo</th><th>Serie</th><th>Estado</th><th>Último ping</th></tr></thead><tbody id="tbody"></tbody></table></section>
+</main>
+<script>
+const SERVER=window.location.origin;let TOKEN=localStorage.getItem('monitor_token');if(!TOKEN)location.href='/login';
+function headers(){return {'Authorization':`Bearer ${TOKEN}`}} function logout(){localStorage.clear();location.href='/login'} function fmt(t){return t?new Date(t+(t.endsWith('Z')?'':'Z')).toLocaleString('es-MX'):'—'}
+async function cargar(){const res=await fetch(`${SERVER}/api/equipos`,{headers:headers()});if(res.status===401){logout();return}const data=await res.json();const equipos=data.equipos||[];total.textContent=equipos.length;dentro.textContent=equipos.filter(e=>e.dentro).length;fuera.textContent=equipos.filter(e=>!e.dentro).length;tbody.innerHTML=equipos.map(e=>`<tr><td>${e.hostname||'—'}</td><td>${e.serial_number||'—'}</td><td><span class="badge ${e.dentro?'ok':'bad'}">${e.dentro?'Dentro':'Fuera'}</span> <span class="badge ${e.online?'ok':'bad'}">${e.online?'Online':'Offline'}</span></td><td>${fmt(e.ultimo_ping)}</td></tr>`).join('')||'<tr><td colspan="4">Sin equipos</td></tr>'}
+cargar();setInterval(cargar,30000);
+</script>
+</body>
+</html>
