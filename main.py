@@ -45,6 +45,7 @@ SECRET_KEY         = "cambia-esta-clave-secreta-en-produccion-2024"
 ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY", "")
+FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", GOOGLE_API_KEY).strip()
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
 SUPER_ADMIN_EMAIL = "francisco.pavana@mundocharro.mx"
 OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
@@ -192,6 +193,24 @@ def actualizar_password_usuario(usuario, password_nueva: str):
             auth.update_user(usuario.firebase_uid, password=password_nueva)
         except Exception as e:
             print(f"No se pudo actualizar password Firebase para {usuario.username}: {e}")
+
+
+def autenticar_firebase_email(email: str, password: str):
+    if not FIREBASE_WEB_API_KEY:
+        return None
+    try:
+        resp = httpx.post(
+            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_WEB_API_KEY}",
+            json={"email": email, "password": password, "returnSecureToken": True},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return {"uid": data.get("localId"), "email": data.get("email", email).lower()}
+    except Exception as e:
+        print(f"No se pudo autenticar contra Firebase Auth: {e}")
+        return None
 
 
 class PingLog(Base):
@@ -590,8 +609,33 @@ async def geolocate(wifi_networks: list):
 def login(form: OAuth2PasswordRequestForm = Depends()):
     db = Session()
     try:
-        usuario = db.query(Usuario).filter_by(username=form.username, activo=True).first()
-        if not usuario or not verificar_password(form.password, usuario.password):
+        username = form.username.strip()
+        usuario = db.query(Usuario).filter_by(username=username, activo=True).first()
+        if not usuario:
+            usuario = db.query(Usuario).filter_by(email=username, activo=True).first()
+        firebase_login = None
+        if "@" in username:
+            firebase_login = autenticar_firebase_email(username, form.password)
+        if firebase_login and not usuario:
+            usuario = Usuario(
+                id       = str(uuid.uuid4()),
+                username = firebase_login["email"],
+                password = pwd_context.hash(form.password),
+                nombre   = firebase_login["email"].split("@")[0],
+                email    = firebase_login["email"],
+                firebase_uid = firebase_login["uid"],
+                role     = "super_admin" if firebase_login["email"] == SUPER_ADMIN_EMAIL else "ingeniero",
+                activo   = True
+            )
+            db.add(usuario)
+            db.commit()
+        elif firebase_login and usuario:
+            usuario.email = firebase_login["email"]
+            usuario.firebase_uid = usuario.firebase_uid or firebase_login["uid"]
+            if firebase_login["email"] == SUPER_ADMIN_EMAIL:
+                usuario.role = "super_admin"
+            db.commit()
+        if not usuario or (not firebase_login and not verificar_password(form.password, usuario.password)):
             raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
         role = usuario.role or "ingeniero"
         token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": role})
