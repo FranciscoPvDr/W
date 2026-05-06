@@ -45,6 +45,7 @@ ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY", "")
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
+SUPER_ADMIN_EMAIL = "francisco.pavana@mundocharro.mx"
 OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
 OFFICE_LNG = float(os.getenv("OFFICE_LNG", "0") or 0)
 MAX_GEO_ACCURACY_M = float(os.getenv("MAX_GEO_ACCURACY_M", "250") or 250)
@@ -298,6 +299,29 @@ def crear_admin():
             db.add(admin)
             db.commit()
             print("Usuario admin creado - user: admin / pass: admin123")
+
+        super_admin = db.query(Usuario).filter_by(username=SUPER_ADMIN_EMAIL).first()
+        if not super_admin:
+            super_admin = Usuario(
+                id       = str(uuid.uuid4()),
+                username = SUPER_ADMIN_EMAIL,
+                password = pwd_context.hash(os.getenv("SUPER_ADMIN_DEFAULT_PASSWORD", "admin123")),
+                nombre   = "Francisco Pavana",
+                email    = SUPER_ADMIN_EMAIL,
+                role     = "super_admin",
+                activo   = True
+            )
+            db.add(super_admin)
+            db.commit()
+            print(f"Super admin web creado - user: {SUPER_ADMIN_EMAIL}")
+        else:
+            super_admin.email = super_admin.email or SUPER_ADMIN_EMAIL
+            super_admin.role = "super_admin"
+            super_admin.activo = True
+            db.commit()
+
+        sync_usuario_to_firebase(super_admin)
+        db.commit()
     finally:
         db.close()
 
