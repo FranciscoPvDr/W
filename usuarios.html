@@ -15,6 +15,7 @@
     <section class="card">
       <h2>Crear usuario</h2>
       <label>Usuario</label><input id="username" autocomplete="off" />
+      <label>Email para app</label><input id="email" autocomplete="off" placeholder="guardia@empresa.com" />
       <label>Nombre</label><input id="nombre" autocomplete="off" />
       <label>Contraseña temporal</label><input id="password" type="password" />
       <label>Rol</label><select id="role"><option value="guardia">Guardia</option><option value="ingeniero">Ingeniero</option><option value="super_admin">Super Admin</option></select>
@@ -41,12 +42,12 @@ async function cargar(){
   const res = await fetch(`${SERVER}/api/usuarios`,{headers:headers()});
   if(res.status===401){logout();return} if(res.status===403){location.href='/dashboard';return}
   const data = await res.json();
-  document.getElementById('tbody').innerHTML = (data.usuarios||[]).map(u=>`<tr><td>${u.username}</td><td>${u.nombre||''}</td><td><span class="badge">${roleLabel(u.role)}</span></td><td><select onchange="cambiarRol('${u.username}',this.value)"><option value="guardia" ${u.role==='guardia'?'selected':''}>Guardia</option><option value="ingeniero" ${u.role==='ingeniero'?'selected':''}>Ingeniero</option><option value="super_admin" ${u.role==='super_admin'?'selected':''}>Super Admin</option></select> <button class="danger" onclick="eliminarUsuario('${u.username}')">Eliminar</button></td></tr>`).join('');
+  document.getElementById('tbody').innerHTML = (data.usuarios||[]).map(u=>`<tr><td>${u.username}<div class="msg">${u.email||''}</div></td><td>${u.nombre||''}</td><td><span class="badge">${roleLabel(u.role)}</span></td><td><select onchange="cambiarRol('${u.username}',this.value)"><option value="guardia" ${u.role==='guardia'?'selected':''}>Guardia</option><option value="ingeniero" ${u.role==='ingeniero'?'selected':''}>Ingeniero</option><option value="super_admin" ${u.role==='super_admin'?'selected':''}>Super Admin</option></select> <button class="danger" onclick="eliminarUsuario('${u.username}')">Eliminar</button></td></tr>`).join('');
 }
 async function crearUsuario(){
-  const payload={username:username.value.trim(),nombre:nombre.value.trim(),password:password.value,role:role.value};
+  const payload={username:username.value.trim(),email:email.value.trim(),nombre:nombre.value.trim(),password:password.value,role:role.value};
   const res=await fetch(`${SERVER}/api/usuarios`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(payload)});
-  const data=await res.json().catch(()=>({})); msg.textContent=res.ok?'Usuario creado':(data.detail||'Error'); if(res.ok){username.value=nombre.value=password.value=''; cargar();}
+  const data=await res.json().catch(()=>({})); msg.textContent=res.ok?`Usuario creado. App email: ${data.email||payload.email}`:(data.detail||'Error'); if(res.ok){username.value=email.value=nombre.value=password.value=''; cargar();}
 }
 async function cambiarRol(user,role){
   const res=await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}/role`,{method:'PATCH',headers:jsonHeaders(),body:JSON.stringify({role})});

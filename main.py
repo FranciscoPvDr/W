@@ -32,9 +32,10 @@ import os
 
 try:
     import firebase_admin
-    from firebase_admin import credentials, firestore
+    from firebase_admin import auth, credentials, firestore
 except ImportError:
     firebase_admin = None
+    auth = None
     credentials = None
     firestore = None
 
@@ -135,6 +136,53 @@ def _get_firebase_db():
     return firebase_db
 
 
+def _normalizar_email_usuario(username: str, email: Optional[str] = ""):
+    value = (email or "").strip()
+    if value:
+        return value
+    user = (username or "").strip()
+    if "@" in user:
+        return user
+    return f"{user}@mundocharro.local"
+
+
+def sync_usuario_to_firebase(usuario, password: Optional[str] = None):
+    firebase_client = _get_firebase_db()
+    if not firebase_client or auth is None:
+        return None
+    email = _normalizar_email_usuario(usuario.username, usuario.email)
+    uid = usuario.firebase_uid
+    try:
+        if uid:
+            auth.update_user(uid, email=email, display_name=usuario.nombre or usuario.username, disabled=not usuario.activo)
+        else:
+            try:
+                user_record = auth.get_user_by_email(email)
+            except Exception:
+                user_record = auth.create_user(
+                    email=email,
+                    password=password,
+                    display_name=usuario.nombre or usuario.username,
+                    disabled=not usuario.activo
+                )
+            uid = user_record.uid
+            usuario.firebase_uid = uid
+            usuario.email = email
+        firebase_client.collection("usuarios").document(uid).set({
+            "uid": uid,
+            "username": usuario.username,
+            "email": email,
+            "nombre": usuario.nombre or usuario.username,
+            "role": usuario.role or "ingeniero",
+            "activo": bool(usuario.activo),
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+        return uid
+    except Exception as e:
+        print(f"No se pudo sincronizar usuario {usuario.username} con Firebase: {e}")
+        return None
+
+
 class PingLog(Base):
     __tablename__ = "ping_logs"
     id        = Column(String, primary_key=True)
@@ -182,6 +230,8 @@ class Usuario(Base):
     password = Column(String)
     nombre   = Column(String)
     role     = Column(String, default="ingeniero")
+    email    = Column(String, nullable=True)
+    firebase_uid = Column(String, nullable=True)
     activo   = Column(Boolean, default=True)
 
 
@@ -220,6 +270,10 @@ def _ensure_sqlite_columns():
         usuarios_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(usuarios)"))}
         if "role" not in usuarios_cols:
             conn.execute(text("ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'ingeniero'"))
+        if "email" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN email TEXT"))
+        if "firebase_uid" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN firebase_uid TEXT"))
         conn.execute(text("UPDATE usuarios SET role = 'super_admin' WHERE username = 'admin' AND (role IS NULL OR role = '')"))
         conn.commit()
 
@@ -275,6 +329,7 @@ class UsuarioCreate(BaseModel):
     username: str
     password: str
     nombre:   str
+    email:    Optional[str] = ""
     role:     Optional[str] = "ingeniero"
 
 
@@ -520,12 +575,15 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
             username = data.username,
             password = pwd_context.hash(data.password),
             nombre   = data.nombre,
+            email    = _normalizar_email_usuario(data.username, data.email),
             role     = data.role or "ingeniero",
             activo   = True
         )
         db.add(nuevo)
         db.commit()
-        return {"ok": True, "mensaje": f"Usuario {data.username} creado"}
+        sync_usuario_to_firebase(nuevo, data.password)
+        db.commit()
+        return {"ok": True, "mensaje": f"Usuario {data.username} creado", "email": nuevo.email, "firebase_uid": nuevo.firebase_uid}
     finally:
         db.close()
 
@@ -536,7 +594,7 @@ def listar_usuarios(usuario=Depends(get_usuario_actual)):
     db = Session()
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
-        return {"usuarios": [{"username": u.username, "nombre": u.nombre, "role": u.role or "ingeniero"} for u in usuarios]}
+        return {"usuarios": [{"username": u.username, "nombre": u.nombre, "email": u.email, "firebase_uid": u.firebase_uid, "role": u.role or "ingeniero"} for u in usuarios]}
     finally:
         db.close()
 
@@ -552,6 +610,8 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
         if not u:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         u.activo = False
+        db.commit()
+        sync_usuario_to_firebase(u)
         db.commit()
         return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
     finally:
@@ -569,6 +629,8 @@ def actualizar_role_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depe
         if not u:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         u.role = data.role
+        db.commit()
+        sync_usuario_to_firebase(u)
         db.commit()
         return {"ok": True, "mensaje": f"Rol actualizado para {username}", "role": data.role}
     finally:
