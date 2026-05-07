@@ -401,6 +401,13 @@ class UsbPolicyUpdate(BaseModel):
     block_usb_storage: bool
 
 
+class EquipoRegistro(BaseModel):
+    numInventario: Optional[str] = ""
+    asignado: Optional[str] = ""
+    departamento: Optional[str] = ""
+    puesto: Optional[str] = ""
+
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
@@ -473,6 +480,9 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
 
     ultimo_ping_iso = equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None
     primer_ping_iso = equipo.primer_ping.isoformat() if equipo.primer_ping else None
+    limite_offline = datetime.utcnow() - timedelta(minutes=2)
+    online = equipo.ultimo_ping >= limite_offline if equipo.ultimo_ping else False
+    sin_senal = not online
     ubicacion = inferir_ubicacion(equipo.dentro, equipo.ssid)
     doc_id = _resolver_doc_firestore(equipo, serial_number)
     serie = (serial_number or equipo.serial_number or "").strip()
@@ -483,6 +493,9 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "ip": equipo.ip or "",
         "ssid": equipo.ssid or "",
         "dentro": bool(equipo.dentro),
+        "online": online,
+        "sinSenal": sin_senal,
+        "estadoConexion": "online" if online else "sin_senal",
         "sistema": equipo.sistema or "",
         "ubicacion": ubicacion,
         "geo": {
@@ -542,6 +555,23 @@ def _obtener_asignacion_firestore(equipo: Equipo):
         "puesto": doc_data.get("puesto", "") or "",
         "numInventario": doc_data.get("numInventario", "") or "",
     }
+
+
+def _eliminar_doc_firestore_equipo(equipo: Equipo):
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        return
+    candidatos = {equipo.device_id}
+    serie = (equipo.serial_number or "").strip()
+    if serie:
+        doc_id, _ = _buscar_doc_firestore_por_serie(serie)
+        if doc_id:
+            candidatos.add(doc_id)
+    for doc_id in candidatos:
+        try:
+            firebase_client.collection("equipos").document(doc_id).delete()
+        except Exception as e:
+            print(f"No se pudo borrar doc Firestore {doc_id}: {e}")
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -960,6 +990,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "device_id":   e.device_id,
                 "serial_number": e.serial_number,
                 "hostname":    e.hostname,
+                "inventariado": bool(asignacion.get("numInventario") or asignacion.get("asignado")),
                 "dentro":      e.dentro,
                 "online":      online,
                 "ultimo_ping": e.ultimo_ping.isoformat() if e.ultimo_ping else None,
@@ -1005,6 +1036,39 @@ def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends
         db.close()
 
 
+@app.post("/api/equipos/{device_id}/registrar")
+def registrar_equipo_inventario(device_id: str, data: EquipoRegistro, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    db = Session()
+    try:
+        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
+        if not equipo:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        doc_id = _resolver_doc_firestore(equipo, equipo.serial_number)
+        payload = {
+            "deviceId": equipo.device_id,
+            "serie": equipo.serial_number or "",
+            "hostname": equipo.hostname or "",
+            "tipo": "Laptop",
+            "subtipo": "Laptop",
+            "numInventario": (data.numInventario or "").strip(),
+            "asignado": (data.asignado or "").strip(),
+            "departamento": (data.departamento or "").strip(),
+            "puesto": (data.puesto or "").strip(),
+            "origen": "sensor_validado",
+            "inventariado": True,
+            "actualizadoEn": datetime.utcnow().isoformat(),
+        }
+        firebase_client.collection("equipos").document(doc_id).set(payload, merge=True)
+        sync_equipo_to_firestore(equipo, equipo.serial_number)
+        return {"ok": True, "mensaje": "Laptop registrada como inventario oficial"}
+    finally:
+        db.close()
+
+
 @app.delete("/api/equipos/{device_id}")
 def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     """
@@ -1019,6 +1083,7 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
         # Borrar historial de pings asociado
         db.query(PingLog).filter_by(device_id=device_id).delete()
+        _eliminar_doc_firestore_equipo(equipo)
         db.delete(equipo)
         db.commit()
         print(f"Equipo eliminado: {device_id} ({equipo.hostname})")
