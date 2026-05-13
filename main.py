@@ -303,6 +303,11 @@ class UsbPolicyUpdate(BaseModel):
     block_usb_storage: bool
 
 
+class UsbPolicyBulkUpdate(BaseModel):
+    device_ids: List[str]
+    block_usb_storage: bool
+
+
 class UsuarioCreate(BaseModel):
     username: str
     password: str
@@ -1523,6 +1528,33 @@ def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends
         sync_equipo_to_firestore(equipo, equipo.serial_number)
         accion = "bloquear" if data.block_usb_storage else "habilitar"
         return {"ok": True, "mensaje": f"Politica USB actualizada: {accion}", "block_usb_storage": data.block_usb_storage}
+    finally:
+        db.close()
+
+
+@app.patch("/api/equipos/usb-policy/bulk")
+def actualizar_usb_policy_bulk(data: UsbPolicyBulkUpdate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    ids = [device_id for device_id in data.device_ids if str(device_id or "").strip()]
+    if not ids:
+        raise HTTPException(status_code=400, detail="Selecciona al menos un equipo")
+    db = Session()
+    try:
+        equipos = db.query(Equipo).filter(Equipo.device_id.in_(ids)).all()
+        encontrados = {e.device_id for e in equipos}
+        for equipo in equipos:
+            equipo.usb_storage_policy = data.block_usb_storage
+        db.commit()
+        for equipo in equipos:
+            sync_equipo_to_firestore(equipo, equipo.serial_number)
+        accion = "bloquear" if data.block_usb_storage else "habilitar"
+        return {
+            "ok": True,
+            "mensaje": f"Politica USB masiva actualizada: {accion}",
+            "actualizados": len(equipos),
+            "no_encontrados": [device_id for device_id in ids if device_id not in encontrados],
+            "block_usb_storage": data.block_usb_storage
+        }
     finally:
         db.close()
 

@@ -399,6 +399,36 @@
   .filter-btn.f-offline.active { background: var(--panel2); color: var(--text2); border-color: var(--border2); }
   .filter-btn.f-fuera.active   { background: var(--red-bg); color: var(--red-t); border-color: rgba(248,81,73,0.22); }
 
+  .bulk-actions {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 1rem;
+    padding: 10px 12px;
+    background: rgba(56,139,253,0.06);
+    border: 1px solid rgba(56,139,253,0.18);
+    border-radius: 10px;
+    color: var(--text2);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+  }
+
+  .bulk-actions.visible { display: flex; }
+
+  .bulk-count {
+    color: var(--blue-t);
+    font-weight: 700;
+    margin-right: auto;
+  }
+
+  .check-cell { width: 34px; text-align: center; }
+  .row-check, .head-check {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+
   .spacer { flex: 1; }
 
   .refresh-btn {
@@ -786,17 +816,24 @@
     </div>
 
     <div id="lista-view">
+      <div id="bulk-actions" class="bulk-actions">
+        <span class="bulk-count" id="bulk-count">0 equipos seleccionados</span>
+        <button class="map-btn" onclick="actualizarUsbPolicyBulk(true)">Bloquear USB seleccionados</button>
+        <button class="map-btn" onclick="actualizarUsbPolicyBulk(false)">Habilitar USB seleccionados</button>
+        <button class="map-btn" onclick="limpiarSeleccion()">Limpiar</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th class="check-cell"><input id="select-all" class="head-check" type="checkbox" onchange="toggleSeleccionVisible(this.checked)"></th>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
               <th>IP</th><th>Red / SSID</th><th>Estado</th>
               <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
-            <tr><td colspan="11"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
+            <tr><td colspan="12"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -823,6 +860,7 @@
   let TOKEN = null, currentFilter = 'todos', allEquipos = [], CURRENT_USERNAME = '';
   let refreshInterval = null, map = null, markers = [];
   let currentTab = 'lista', offlineAlertMinutes = 10;
+  let selectedEquipos = new Set();
 
   document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
@@ -931,6 +969,36 @@
     return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
   }
 
+  function updateBulkActions() {
+    const bulk = document.getElementById('bulk-actions');
+    const count = document.getElementById('bulk-count');
+    if (!bulk || !count) return;
+    const total = selectedEquipos.size;
+    bulk.classList.toggle('visible', CURRENT_USERNAME === 'admin' && total > 0);
+    count.textContent = `${total} equipo${total === 1 ? '' : 's'} seleccionado${total === 1 ? '' : 's'}`;
+  }
+
+  function toggleSeleccion(deviceId, checked) {
+    if (checked) selectedEquipos.add(deviceId);
+    else selectedEquipos.delete(deviceId);
+    updateBulkActions();
+  }
+
+  function limpiarSeleccion() {
+    selectedEquipos.clear();
+    document.querySelectorAll('.row-check').forEach(chk => chk.checked = false);
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) selectAll.checked = false;
+    updateBulkActions();
+  }
+
+  function toggleSeleccionVisible(checked) {
+    document.querySelectorAll('.row-check').forEach(chk => {
+      chk.checked = checked;
+      toggleSeleccion(chk.dataset.deviceId, checked);
+    });
+  }
+
   function renderTabla(equipos) {
     const tbody = document.getElementById('tabla-equipos');
     let filtered = equipos;
@@ -945,12 +1013,14 @@
     if (currentFilter === 'fuera') filtered = equipos.filter(e => !e.dentro);
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      updateBulkActions();
       return;
     }
 
     tbody.innerHTML = filtered.map(e => `
       <tr>
+        <td class="check-cell">${CURRENT_USERNAME === 'admin' ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
         <td>
           <div class="hostname">${e.hostname || '—'}</div>
           <div class="device-id">${e.device_id.slice(0,8)}…</div>
@@ -975,6 +1045,9 @@
         <td>${usbActionButton(e)} ${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
       </tr>
     `).join('');
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) selectAll.checked = filtered.length > 0 && filtered.every(e => selectedEquipos.has(e.device_id));
+    updateBulkActions();
   }
 
   function initMap() {
@@ -1071,6 +1144,27 @@
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
       await fetchData();
+    } catch {
+      alert('No se pudo conectar al servidor');
+    }
+  }
+
+  async function actualizarUsbPolicyBulk(blockUsbStorage) {
+    const ids = Array.from(selectedEquipos);
+    if (!ids.length) { alert('Selecciona al menos un equipo'); return; }
+    const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
+    if (!confirm(`¿Quieres ${accion} almacenamiento USB en ${ids.length} equipo(s)?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador en cada laptop.`)) return;
+    try {
+      const res = await fetch(`${SERVER}/api/equipos/usb-policy/bulk`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_ids: ids, block_usb_storage: blockUsbStorage })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert('Error: ' + (data.detail || res.status)); return; }
+      limpiarSeleccion();
+      await fetchData();
+      alert(data.mensaje || 'Política USB actualizada');
     } catch {
       alert('No se pudo conectar al servidor');
     }
