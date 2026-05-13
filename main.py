@@ -243,6 +243,17 @@ class UsuarioCreate(BaseModel):
     nombre:   str
 
 
+class AssetCreate(BaseModel):
+    numInventario: Optional[str] = ""
+    serie: Optional[str] = ""
+    tipo: Optional[str] = "Laptop"
+    marca: Optional[str] = ""
+    modelo: Optional[str] = ""
+    asignado: Optional[str] = ""
+    departamento: Optional[str] = ""
+    puesto: Optional[str] = ""
+
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
@@ -368,6 +379,7 @@ def _obtener_asignacion_firestore(equipo: Equipo):
         "departamento": doc_data.get("departamento", "") or "",
         "puesto": doc_data.get("puesto", "") or "",
         "numInventario": doc_data.get("numInventario", "") or "",
+        "inventariado": bool(doc_data.get("numInventario") or doc_data.get("asignado") or doc_data.get("tipo")),
     }
 
 
@@ -396,6 +408,11 @@ def get_usuario_actual(token: str = Depends(oauth2_scheme)):
         return {"username": usuario.username, "nombre": usuario.nombre}
     finally:
         db.close()
+
+
+def exigir_super_admin(usuario):
+    if usuario["username"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo el super admin puede realizar esta acción")
 
 
 # ── Geolocalización Google ─────────────────────────────────────────────────
@@ -449,6 +466,7 @@ def me(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/usuarios")
 def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
     db = Session()
     try:
         existe = db.query(Usuario).filter_by(username=data.username).first()
@@ -480,6 +498,7 @@ def listar_usuarios(usuario=Depends(get_usuario_actual)):
 
 @app.delete("/api/usuarios/{username}")
 def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
     if username == "admin":
         raise HTTPException(status_code=400, detail="No se puede eliminar el admin")
     db = Session()
@@ -492,6 +511,71 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
         return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
     finally:
         db.close()
+
+
+@app.get("/api/assets")
+def listar_assets(usuario=Depends(get_usuario_actual)):
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    try:
+        docs = firebase_client.collection("equipos").stream()
+        assets = []
+        for doc in docs:
+            data = doc.to_dict() or {}
+            assets.append({
+                "id": doc.id,
+                "numInventario": data.get("numInventario", "") or "",
+                "serie": data.get("serie", "") or "",
+                "tipo": data.get("tipo", "") or "",
+                "marca": data.get("marca", "") or "",
+                "modelo": data.get("modelo", "") or "",
+                "asignado": data.get("asignado", "") or "",
+                "departamento": data.get("departamento", "") or "",
+                "puesto": data.get("puesto", "") or "",
+            })
+        return {"assets": assets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudieron cargar assets: {e}")
+
+
+@app.post("/api/assets")
+def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    payload = {
+        "numInventario": (data.numInventario or "").strip(),
+        "serie": (data.serie or "").strip(),
+        "tipo": (data.tipo or "Laptop").strip(),
+        "marca": (data.marca or "").strip(),
+        "modelo": (data.modelo or "").strip(),
+        "asignado": (data.asignado or "").strip(),
+        "departamento": (data.departamento or "").strip(),
+        "puesto": (data.puesto or "").strip(),
+        "inventariado": True,
+        "actualizadoEn": datetime.utcnow().isoformat(),
+    }
+    doc_id = payload["serie"] or payload["numInventario"] or str(uuid.uuid4())
+    try:
+        firebase_client.collection("equipos").document(doc_id).set(payload, merge=True)
+        return {"ok": True, "id": doc_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar asset: {e}")
+
+
+@app.delete("/api/assets/{asset_id}")
+def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    try:
+        firebase_client.collection("equipos").document(asset_id).delete()
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo eliminar asset: {e}")
 
 
 @app.post("/api/usuarios/cambiar-password")
@@ -632,6 +716,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "asignado": asignacion.get("asignado", ""),
                 "departamento": asignacion.get("departamento", ""),
                 "puesto": asignacion.get("puesto", ""),
+                "inventariado": asignacion.get("inventariado", False),
                 "hostname":    e.hostname,
                 "ip":          e.ip,
                 "ssid":        e.ssid,
