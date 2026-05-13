@@ -9,6 +9,19 @@
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nav a,.nav button,.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1450px;margin:auto}.grid{display:grid;grid-template-columns:380px 1fr;gap:18px}.stack{display:grid;gap:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}label{display:block;margin:10px 0 5px;color:var(--muted);font-size:.75rem;font-weight:700;text-transform:uppercase}input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1117;color:var(--text)}textarea{min-height:170px;font-family:Consolas,monospace}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;font-size:.86rem;vertical-align:top}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}.muted{color:var(--muted);font-size:.78rem}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#1f6feb33;color:#79c0ff;font-size:.78rem}.ok{background:#23863633;color:#7ee787}.primary{background:var(--green)!important;color:white!important}.danger{background:var(--red)!important;color:white!important}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tablewrap{overflow:auto}.actions{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:1000px){.grid{grid-template-columns:1fr}table{min-width:1050px}.row{grid-template-columns:1fr}}
   </style>
   <style>
+    .grid { grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); align-items: start; }
+    .card { box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+    .form-card { padding: 20px; }
+    .form-card h2 { margin: 0 0 4px; font-size: 1.18rem; }
+    .form-card .hint { margin: 0 0 14px; color: var(--muted); font-size: .82rem; line-height: 1.35; }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field-full { grid-column: 1 / -1; }
+    .form-card label { margin-top: 0; }
+    .form-card input, .form-card select, .form-card textarea { min-height: 40px; }
+    .csv-card textarea { min-height: 120px; resize: vertical; }
+    .csv-example { display: block; margin-top: 8px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-family: Consolas, monospace; font-size: .72rem; overflow-wrap: anywhere; }
+    .actions { margin-top: 12px; }
+    #msg, #bulkMsg { display: block; margin-top: 10px; min-height: 18px; }
     .tablewrap { max-width: 100%; overflow-x: auto; }
     table { table-layout: fixed; min-width: 1120px; }
     th, td { overflow-wrap: anywhere; word-break: break-word; line-height: 1.35; }
@@ -22,6 +35,7 @@
     td:nth-child(8) { width: 95px; }
     .badge { white-space: normal; max-width: 100%; }
     .btn { white-space: nowrap; }
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}.field-grid{grid-template-columns:1fr}.field-full{grid-column:auto}}
   </style>
 </head>
 <body>
@@ -29,20 +43,28 @@
 <main>
   <div class="grid">
     <div class="stack">
-      <section class="card">
+      <section class="card form-card">
         <h2 id="formTitle">Agregar empleado</h2>
+        <p class="hint">Captura los datos básicos del empleado. Se guardará directamente en Firebase.</p>
         <input id="editId" type="hidden" />
-        <div class="row"><div><label>No. empleado</label><input id="numEmpleado" placeholder="A-00011" /></div><div><label>Fecha ingreso</label><input id="fechaIngreso" placeholder="06/01/2025" /></div></div>
-        <label>Nombre</label><input id="nombre" />
-        <div class="row"><div><label>Apellido paterno</label><input id="apellidoPaterno" /></div><div><label>Apellido materno</label><input id="apellidoMaterno" /></div></div>
-        <div class="row"><div><label>Departamento</label><input id="departamento" /></div><div><label>Puesto</label><input id="puesto" /></div></div>
-        <div class="row"><div><label>Correo</label><input id="correo" /></div><div><label>Teléfono</label><input id="telefono" /></div></div>
-        <label>Estado</label><select id="activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+        <div class="field-grid">
+          <div><label>No. empleado</label><input id="numEmpleado" placeholder="A-00011" /></div>
+          <div><label>Fecha ingreso</label><input id="fechaIngreso" placeholder="06/01/2025" /></div>
+          <div class="field-full"><label>Nombre</label><input id="nombre" placeholder="VICTOR MANUEL" /></div>
+          <div><label>Apellido paterno</label><input id="apellidoPaterno" placeholder="HERNANDEZ" /></div>
+          <div><label>Apellido materno</label><input id="apellidoMaterno" placeholder="CAMPOS" /></div>
+          <div><label>Departamento</label><input id="departamento" placeholder="Finanzas" /></div>
+          <div><label>Puesto</label><input id="puesto" placeholder="Director de Finanzas" /></div>
+          <div><label>Correo</label><input id="correo" placeholder="correo@empresa.com" /></div>
+          <div><label>Teléfono</label><input id="telefono" placeholder="Opcional" /></div>
+          <div class="field-full"><label>Estado</label><select id="activo"><option value="true">Activo</option><option value="false">Inactivo</option></select></div>
+        </div>
         <div class="actions"><button class="btn primary" onclick="guardarEmpleado()">Guardar</button><button class="btn" onclick="limpiarForm()">Nuevo</button></div><div class="muted" id="msg"></div>
       </section>
-      <section class="card">
+      <section class="card form-card csv-card">
         <h2>Carga / edición masiva CSV</h2>
-        <div class="muted">Encabezados: numEmpleado,nombre,apellidoPaterno,apellidoMaterno,correo,departamento,puesto,telefono,fechaIngreso,activo</div>
+        <p class="hint">Sube un CSV o exporta los empleados actuales, edítalos y vuelve a guardarlos masivamente.</p>
+        <code class="csv-example">numEmpleado,nombre,apellidoPaterno,apellidoMaterno,correo,departamento,puesto,telefono,fechaIngreso,activo</code>
         <label>Archivo CSV</label><input type="file" id="csvFile" accept=".csv,text/csv" onchange="leerArchivoCSV()" />
         <label>Pegar CSV</label><textarea id="csvText" placeholder="numEmpleado,nombre,apellidoPaterno,apellidoMaterno,correo,departamento,puesto,telefono,fechaIngreso,activo"></textarea>
         <div class="actions"><button class="btn" onclick="exportarCSV()">Exportar actuales</button><button class="btn primary" onclick="guardarCSV()">Guardar CSV en Firebase</button></div><div class="muted" id="bulkMsg"></div>
