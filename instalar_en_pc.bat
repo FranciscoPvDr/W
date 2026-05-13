@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 
 title Instalador de Sensor de Equipos
 
@@ -48,6 +49,10 @@ set DESTINO=%APPDATA%\SensorEquipo
 
 mkdir "%DESTINO%" >nul 2>&1
 
+:: Detener instancia previa antes de reemplazar el ejecutable
+
+taskkill /F /IM SensorEquipo.exe >nul 2>&1
+
 copy /Y "SensorEquipo.exe" "%DESTINO%\SensorEquipo.exe" >nul
 
 copy /Y "sensor_config.json" "%DESTINO%\sensor_config.json" >nul
@@ -66,23 +71,9 @@ schtasks /delete /tn "SensorEquipo" /f >nul 2>&1
 
 :: - Se ejecuta al iniciar sesion cualquier usuario
 
-:: - Delay de 30 segundos para que Windows termine de cargar
-
 :: - Corre con privilegios altos en segundo plano
 
-schtasks /create ^
-
-    /tn "SensorEquipo" ^
-
-    /tr "\"%DESTINO%\SensorEquipo.exe\"" ^
-
-    /sc ONLOGON ^
-
-    /delay 0000:30 ^
-
-    /rl HIGHEST ^
-
-    /f >nul
+schtasks /create /tn "SensorEquipo" /tr "\"%DESTINO%\SensorEquipo.exe\"" /sc ONLOGON /rl HIGHEST /f >nul
 
 
 
@@ -109,10 +100,6 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "SensorEquipo
 echo [3/4] Entrada antigua del registro eliminada.
 
 
-
-:: Detener instancia previa y arrancar el sensor ahora
-
-taskkill /F /IM SensorEquipo.exe >nul 2>&1
 
 start "" "%DESTINO%\SensorEquipo.exe"
 

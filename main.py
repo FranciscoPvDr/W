@@ -395,6 +395,36 @@ def inferir_ubicacion(dentro: bool, ssid: Optional[str]) -> str:
     return f"Fuera de oficina ({ssid})" if ssid else "Fuera de oficina"
 
 
+def _normalizar_serie(value: Optional[str]) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+
+
+def _buscar_equipo_por_serie_normalizada(db, serie: str):
+    serie_norm = _normalizar_serie(serie)
+    if not serie_norm:
+        return None
+    equipos = db.query(Equipo).filter(Equipo.serial_number.isnot(None)).order_by(Equipo.ultimo_ping.desc()).all()
+    for equipo in equipos:
+        if _normalizar_serie(equipo.serial_number) == serie_norm:
+            return equipo
+    return None
+
+
+def _buscar_asset_supabase_por_serie(serie: str):
+    serie_norm = _normalizar_serie(serie)
+    if not serie_norm:
+        return None
+    try:
+        rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+    except Exception as e:
+        print(f"No se pudo buscar asset por serie en Supabase: {e}")
+        return None
+    for row in rows:
+        if _normalizar_serie(row.get("serie")) == serie_norm:
+            return row
+    return None
+
+
 def _resolver_doc_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
     """
     Busca documento por serie de inventario; si no existe, usa device_id.
@@ -487,11 +517,21 @@ def _obtener_asignacion_firestore(equipo: Equipo):
     """
     Obtiene datos de asignación desde Firestore, priorizando match por serie.
     """
+    serie = (equipo.serial_number or "").strip()
+    asset = _buscar_asset_supabase_por_serie(serie)
+    if asset:
+        return {
+            "asignado": asset.get("asignado", "") or "",
+            "departamento": asset.get("departamento", "") or "",
+            "puesto": asset.get("puesto", "") or "",
+            "numInventario": asset.get("num_inventario", "") or "",
+            "inventariado": True,
+        }
+
     firebase_client = _get_firebase_db()
     if not firebase_client:
         return {}
 
-    serie = (equipo.serial_number or "").strip()
     doc_data = None
     if serie:
         _, serie_doc_data = _buscar_doc_firestore_por_serie(serie)
@@ -1198,9 +1238,7 @@ async def recibir_ping(data: PingRequest):
             serial_limpio_geo = (data.serial_number or "").strip()
             equipo_geo = None
             if serial_limpio_geo:
-                equipo_geo = db.query(Equipo).filter(
-                    Equipo.serial_number == serial_limpio_geo
-                ).first()
+                equipo_geo = _buscar_equipo_por_serie_normalizada(db, serial_limpio_geo)
             if not equipo_geo:
                 equipo_geo = db.query(Equipo).filter_by(device_id=data.device_id).first()
             if equipo_geo and equipo_geo.lat:
@@ -1233,9 +1271,7 @@ async def recibir_ping(data: PingRequest):
         serial_limpio = (data.serial_number or "").strip()
         equipo = None
         if serial_limpio:
-            equipo = db.query(Equipo).filter(
-                Equipo.serial_number == serial_limpio
-            ).first()
+            equipo = _buscar_equipo_por_serie_normalizada(db, serial_limpio)
             if equipo:
                 # Actualizar device_id al nuevo en caso de reinstalación
                 equipo.device_id = data.device_id
@@ -1311,7 +1347,7 @@ def obtener_usb_policy(device_id: str):
 def listar_equipos(usuario=Depends(get_usuario_actual)):
     db = Session()
     try:
-        equipos = db.query(Equipo).all()
+        equipos = db.query(Equipo).order_by(Equipo.ultimo_ping.desc()).all()
         limite_offline = datetime.utcnow() - timedelta(minutes=2)
         resultado_por_clave = {}
         for e in equipos:
@@ -1341,7 +1377,9 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "usb_block_error": e.usb_block_error,
                 "usb_updated_at": e.usb_updated_at.isoformat() if e.usb_updated_at else None,
             }
-            resultado_por_clave[(e.serial_number or e.device_id or "").strip()] = item
+            clave = _normalizar_serie(e.serial_number) or (e.device_id or "").strip()
+            if clave not in resultado_por_clave:
+                resultado_por_clave[clave] = item
 
         firebase_client = _get_firebase_db()
         if firebase_client:
@@ -1354,7 +1392,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                     if not (data.get("deviceId") or data.get("device_id") or data.get("serie") or data.get("serial_number")):
                         continue
                     item = _equipo_firestore_a_resultado(doc.id, data, limite_offline)
-                    clave = (item.get("serial_number") or item.get("device_id") or doc.id).strip()
+                    clave = _normalizar_serie(item.get("serial_number")) or (item.get("device_id") or doc.id).strip()
                     if clave not in resultado_por_clave:
                         resultado_por_clave[clave] = item
             except Exception as e:

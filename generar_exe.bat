@@ -1,4 +1,5 @@
 @echo off
+pushd "%~dp0"
 title Generador de Sensor de Equipos
 color 0A
 echo.
