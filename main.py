@@ -474,10 +474,10 @@ def _equipo_firestore_a_resultado(doc_id: str, data: dict, limite_offline: datet
     return {
         "device_id": data.get("deviceId") or data.get("device_id") or doc_id,
         "serial_number": data.get("serie") or data.get("serial_number") or "",
-        "numInventario": data.get("numInventario", "") or "",
-        "asignado": data.get("asignado", "") or "",
-        "departamento": data.get("departamento", "") or "",
-        "puesto": data.get("puesto", "") or "",
+        "numInventario": _safe_firestore_text(data.get("numInventario")),
+        "asignado": _safe_firestore_text(data.get("asignado")),
+        "departamento": _safe_firestore_text(data.get("departamento")),
+        "puesto": _safe_firestore_text(data.get("puesto")),
         "inventariado": bool(data.get("inventariado") or data.get("numInventario") or data.get("asignado") or data.get("tipo")),
         "hostname": data.get("hostname", "") or "",
         "ip": data.get("ip", "") or "",
@@ -541,6 +541,21 @@ def _payload_empleado(data: EmpleadoCreate) -> dict:
         "puesto": (data.puesto or "").strip(),
         "telefono": (data.telefono or "").strip(),
     }
+
+
+def _safe_firestore_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return str(value)
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -703,17 +718,17 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
             data = doc.to_dict() or {}
             assets.append({
                 "id": doc.id,
-                "numInventario": data.get("numInventario", "") or "",
-                "serie": data.get("serie", "") or "",
-                "tipo": data.get("tipo", "") or "",
-                "marca": data.get("marca", "") or "",
-                "modelo": data.get("modelo", "") or "",
-                "subtipo": data.get("subtipo", "") or "",
-                "notas": data.get("notas", "") or "",
-                "fechaCompra": data.get("fechaCompra", "") or "",
-                "asignado": data.get("asignado", "") or "",
-                "departamento": data.get("departamento", "") or "",
-                "puesto": data.get("puesto", "") or "",
+                "numInventario": _safe_firestore_text(data.get("numInventario")),
+                "serie": _safe_firestore_text(data.get("serie")),
+                "tipo": _safe_firestore_text(data.get("tipo")),
+                "marca": _safe_firestore_text(data.get("marca")),
+                "modelo": _safe_firestore_text(data.get("modelo")),
+                "subtipo": _safe_firestore_text(data.get("subtipo")),
+                "notas": _safe_firestore_text(data.get("notas")),
+                "fechaCompra": _safe_firestore_text(data.get("fechaCompra")),
+                "asignado": _safe_firestore_text(data.get("asignado")),
+                "departamento": _safe_firestore_text(data.get("departamento")),
+                "puesto": _safe_firestore_text(data.get("puesto")),
             })
         return {"assets": assets}
     except Exception as e:
@@ -801,16 +816,16 @@ def listar_empleados(usuario=Depends(get_usuario_actual)):
             data = doc.to_dict() or {}
             empleados.append({
                 "id": doc.id,
-                "numEmpleado": data.get("numEmpleado", "") or "",
-                "nombre": data.get("nombre", "") or "",
-                "apellidoPaterno": data.get("apellidoPaterno", "") or "",
-                "apellidoMaterno": data.get("apellidoMaterno", "") or "",
+                "numEmpleado": _safe_firestore_text(data.get("numEmpleado")),
+                "nombre": _safe_firestore_text(data.get("nombre")),
+                "apellidoPaterno": _safe_firestore_text(data.get("apellidoPaterno")),
+                "apellidoMaterno": _safe_firestore_text(data.get("apellidoMaterno")),
                 "nombreCompleto": _nombre_completo_empleado(data),
-                "correo": data.get("correo", "") or "",
-                "departamento": data.get("departamento", "") or "",
-                "puesto": data.get("puesto", "") or "",
-                "telefono": data.get("telefono", "") or "",
-                "fechaIngreso": data.get("fechaIngreso", "") or "",
+                "correo": _safe_firestore_text(data.get("correo")),
+                "departamento": _safe_firestore_text(data.get("departamento")),
+                "puesto": _safe_firestore_text(data.get("puesto")),
+                "telefono": _safe_firestore_text(data.get("telefono")),
+                "fechaIngreso": _safe_firestore_text(data.get("fechaIngreso")),
                 "activo": data.get("activo", True),
             })
         empleados.sort(key=lambda x: x.get("nombreCompleto", ""))
