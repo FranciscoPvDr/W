@@ -242,6 +242,27 @@ def set_portable_devices_blocked(blocked):
         return current, str(e) or current_error
 
 
+def set_current_wpd_devices_enabled(enabled):
+    if platform.system() != "Windows":
+        return None, "solo_windows"
+    if not is_windows_admin():
+        return None, "requiere_permisos_administrador"
+    try:
+        action = "Enable-PnpDevice" if enabled else "Disable-PnpDevice"
+        cmd = (
+            "$devices = Get-PnpDevice -Class WPD -ErrorAction SilentlyContinue; "
+            "foreach ($device in $devices) { "
+            f"  {action} -InstanceId $device.InstanceId -Confirm:$false -ErrorAction SilentlyContinue "
+            "}; "
+            "$devices.Count"
+        )
+        output = _powershell(cmd)
+        count = int(output) if str(output).strip().isdigit() else 0
+        return count, ""
+    except Exception as e:
+        return None, str(e)
+
+
 def count_usb_storage_devices():
     if platform.system() != "Windows":
         return None
@@ -279,13 +300,17 @@ def aplicar_usb_policy(device_id):
     if policy is not None:
         blocked, error = set_usb_storage_blocked(bool(policy))
         portable_blocked, portable_error = set_portable_devices_blocked(bool(policy))
+        wpd_count, wpd_error = set_current_wpd_devices_enabled(not bool(policy))
     else:
         blocked, error = get_usb_storage_blocked()
         portable_blocked, portable_error = get_portable_devices_blocked()
+        wpd_count, wpd_error = None, ""
     if error:
         errors.append(f"storage:{error}")
     if portable_error:
         errors.append(f"portable:{portable_error}")
+    if wpd_error:
+        errors.append(f"wpd_actual:{wpd_error}")
     devices = count_usb_storage_devices()
     return {
         "usb_storage_blocked": bool(blocked) or bool(portable_blocked),
