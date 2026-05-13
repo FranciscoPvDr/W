@@ -349,6 +349,40 @@ class EmpleadosBulk(BaseModel):
     empleados: List[EmpleadoCreate]
 
 
+class SolicitudCasaCreate(BaseModel):
+    equipoId: str
+    equipoNombre: Optional[str] = ""
+    numInventario: Optional[str] = ""
+    solicitanteEmail: Optional[str] = ""
+    solicitanteNombre: Optional[str] = ""
+    dias: Optional[int] = 0
+    motivo: Optional[str] = ""
+    notas: Optional[str] = ""
+    fechaRetornoTexto: Optional[str] = ""
+
+
+class MovimientoCreate(BaseModel):
+    equipoId: str
+    equipoNombre: Optional[str] = ""
+    tipo: str
+    persona: Optional[str] = ""
+    departamento: Optional[str] = ""
+    puesto: Optional[str] = ""
+    motivo: Optional[str] = ""
+    notas: Optional[str] = ""
+    registradoPor: Optional[str] = ""
+    enCasa: Optional[bool] = False
+
+
+class SolicitudCasaDecision(BaseModel):
+    autorizadoPor: Optional[str] = ""
+    autorizada: bool
+
+
+class SolicitudCasaSalida(BaseModel):
+    guardia: Optional[str] = ""
+
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
@@ -583,6 +617,156 @@ def _safe_firestore_text(value) -> str:
         except Exception:
             pass
     return str(value)
+
+
+def _supabase_headers(prefer: str = "return=representation"):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(status_code=400, detail="Supabase no configurado")
+    return {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": prefer,
+    }
+
+
+def _supabase_url(table: str) -> str:
+    if not SUPABASE_URL:
+        raise HTTPException(status_code=400, detail="Supabase no configurado")
+    return f"{SUPABASE_URL}/rest/v1/{table}"
+
+
+def _supabase_request(method: str, table: str, params=None, json=None, prefer: str = "return=representation"):
+    try:
+        with httpx.Client(timeout=30) as client:
+            res = client.request(method, _supabase_url(table), headers=_supabase_headers(prefer), params=params, json=json)
+        if res.status_code >= 400:
+            raise HTTPException(status_code=res.status_code, detail=res.text)
+        if not res.text:
+            return None
+        return res.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error conectando a Supabase: {e}")
+
+
+def _asset_row_to_api(row: dict) -> dict:
+    return {
+        "id": _safe_firestore_text(row.get("id")),
+        "numInventario": _safe_firestore_text(row.get("num_inventario")),
+        "serie": _safe_firestore_text(row.get("serie")),
+        "tipo": _safe_firestore_text(row.get("tipo")),
+        "subtipo": _safe_firestore_text(row.get("subtipo")),
+        "marca": _safe_firestore_text(row.get("marca")),
+        "modelo": _safe_firestore_text(row.get("modelo")),
+        "asignado": _safe_firestore_text(row.get("asignado")),
+        "departamento": _safe_firestore_text(row.get("departamento")),
+        "puesto": _safe_firestore_text(row.get("puesto")),
+        "ubicacion": _safe_firestore_text(row.get("ubicacion")),
+        "hostname": _safe_firestore_text(row.get("hostname")),
+        "ip": _safe_firestore_text(row.get("ip")),
+        "ssid": _safe_firestore_text(row.get("ssid")),
+        "deviceId": _safe_firestore_text(row.get("device_id")),
+        "lat": row.get("lat"),
+        "lng": row.get("lng"),
+        "accuracy": row.get("accuracy"),
+        "estado": _safe_firestore_text(row.get("estado")),
+        "online": bool(row.get("online", False)),
+        "dentro": row.get("dentro", True),
+        "enCasa": bool(row.get("en_casa", False)),
+        "notas": _safe_firestore_text(row.get("notas")),
+        "fechaCompra": _safe_firestore_text(row.get("fecha_compra")),
+    }
+
+
+def _empleado_row_to_api(row: dict) -> dict:
+    return {
+        "id": _safe_firestore_text(row.get("num_empleado") or row.get("id")),
+        "numEmpleado": _safe_firestore_text(row.get("num_empleado")),
+        "nombre": _safe_firestore_text(row.get("nombre")),
+        "apellidoPaterno": _safe_firestore_text(row.get("apellido_paterno")),
+        "apellidoMaterno": _safe_firestore_text(row.get("apellido_materno")),
+        "nombreCompleto": _safe_firestore_text(row.get("nombre_completo")),
+        "correo": _safe_firestore_text(row.get("correo")),
+        "departamento": _safe_firestore_text(row.get("departamento")),
+        "puesto": _safe_firestore_text(row.get("puesto")),
+        "telefono": _safe_firestore_text(row.get("telefono")),
+        "fechaIngreso": _safe_firestore_text(row.get("fecha_ingreso")),
+        "activo": row.get("activo", True),
+    }
+
+
+def _movimiento_row_to_api(row: dict) -> dict:
+    return {
+        "id": _safe_firestore_text(row.get("id")),
+        "equipoId": _safe_firestore_text(row.get("equipo_id")),
+        "equipoNombre": _safe_firestore_text(row.get("equipo_nombre")),
+        "tipo": _safe_firestore_text(row.get("tipo")),
+        "motivo": _safe_firestore_text(row.get("motivo")),
+        "persona": _safe_firestore_text(row.get("persona")),
+        "puesto": _safe_firestore_text(row.get("puesto")),
+        "departamento": _safe_firestore_text(row.get("departamento")),
+        "notas": _safe_firestore_text(row.get("notas")),
+        "registradoPor": _safe_firestore_text(row.get("registrado_por")),
+        "fecha": _safe_firestore_text(row.get("fecha")),
+    }
+
+
+def _solicitud_row_to_api(row: dict) -> dict:
+    return {
+        "id": _safe_firestore_text(row.get("id")),
+        "equipoId": _safe_firestore_text(row.get("equipo_id")),
+        "equipoNombre": _safe_firestore_text(row.get("equipo_nombre")),
+        "numInventario": _safe_firestore_text(row.get("num_inventario")),
+        "solicitanteEmail": _safe_firestore_text(row.get("solicitante_email")),
+        "solicitanteNombre": _safe_firestore_text(row.get("solicitante_nombre") or row.get("persona_salida")),
+        "dias": row.get("dias") or 0,
+        "fechaSolicitud": _safe_firestore_text(row.get("fecha_solicitud")),
+        "fechaInicio": _safe_firestore_text(row.get("fecha_inicio")),
+        "fechaFin": _safe_firestore_text(row.get("fecha_fin")),
+        "motivo": _safe_firestore_text(row.get("motivo")),
+        "estado": _safe_firestore_text(row.get("estado") or "pendiente"),
+        "autorizadoPor": _safe_firestore_text(row.get("autorizado_por")),
+        "salidaConfirmadaPor": _safe_firestore_text(row.get("salida_confirmada_por")),
+        "notas": _safe_firestore_text(row.get("notas")),
+    }
+
+
+def _asset_payload_supabase(data: AssetCreate) -> dict:
+    asset_id = (data.numInventario or data.serie or str(uuid.uuid4())).strip()
+    return {
+        "id": asset_id,
+        "num_inventario": (data.numInventario or "").strip() or None,
+        "serie": (data.serie or "").strip() or None,
+        "tipo": (data.tipo or "Laptop").strip() or None,
+        "subtipo": (data.subtipo or "").strip() or None,
+        "marca": (data.marca or "").strip() or None,
+        "modelo": (data.modelo or "").strip() or None,
+        "asignado": (data.asignado or "").strip() or None,
+        "departamento": (data.departamento or "").strip() or None,
+        "puesto": (data.puesto or "").strip() or None,
+        "notas": (data.notas or "").strip() or None,
+        "fecha_compra": (data.fechaCompra or "").strip() or None,
+        "actualizado_en": datetime.utcnow().isoformat(),
+    }
+
+
+def _empleado_payload_supabase(data: EmpleadoCreate) -> dict:
+    payload = _payload_empleado(data)
+    return {
+        "num_empleado": payload["numEmpleado"] or str(uuid.uuid4()),
+        "nombre": payload["nombre"],
+        "apellido_paterno": payload["apellidoPaterno"] or None,
+        "apellido_materno": payload["apellidoMaterno"] or None,
+        "nombre_completo": payload["nombreCompleto"] or None,
+        "correo": payload["correo"] or None,
+        "telefono": payload["telefono"] or None,
+        "departamento": payload["departamento"] or None,
+        "puesto": payload["puesto"] or None,
+        "fecha_ingreso": payload["fechaIngreso"] or None,
+        "activo": payload["activo"],
+    }
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -836,6 +1020,144 @@ def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=De
     _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
     _cache_clear("assets")
     return {"ok": True, "id": asset_id}
+
+
+@app.get("/api/mobile/assets")
+def mobile_listar_assets():
+    rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+    return {"assets": [_asset_row_to_api(row) for row in rows], "omitidos": []}
+
+
+@app.get("/api/mobile/movimientos")
+def mobile_listar_movimientos(equipo_id: Optional[str] = None):
+    params = {"select": "*", "order": "fecha.desc.nullslast"}
+    if equipo_id:
+        params["equipo_id"] = f"eq.{equipo_id}"
+    rows = _supabase_request("GET", "movimientos", params=params) or []
+    return {"movimientos": [_movimiento_row_to_api(row) for row in rows]}
+
+
+@app.post("/api/mobile/movimientos")
+def mobile_crear_movimiento(data: MovimientoCreate):
+    payload = {
+        "id": str(uuid.uuid4()),
+        "equipo_id": data.equipoId,
+        "equipo_nombre": data.equipoNombre or "",
+        "tipo": data.tipo,
+        "motivo": data.motivo or "",
+        "persona": data.persona or "",
+        "puesto": data.puesto or "",
+        "departamento": data.departamento or "",
+        "notas": data.notas or "",
+        "registrado_por": data.registradoPor or "",
+        "fecha": datetime.utcnow().isoformat(),
+    }
+    rows = _supabase_request("POST", "movimientos", json=payload) or []
+    nuevo_estado = "Disponible"
+    asignado = ""
+    departamento = ""
+    puesto = ""
+    if data.tipo == "salida":
+        if data.motivo == "Enviar a reparación":
+            nuevo_estado = "En reparación"
+        elif data.motivo == "Préstamo externo":
+            nuevo_estado = "En préstamo"
+        else:
+            nuevo_estado = "Asignado"
+        asignado = data.persona or ""
+        departamento = data.departamento or ""
+        puesto = data.puesto or ""
+    _supabase_request(
+        "PATCH",
+        "equipos",
+        params={"id": f"eq.{data.equipoId}"},
+        json={
+            "estado": nuevo_estado,
+            "asignado": asignado,
+            "departamento": departamento,
+            "puesto": puesto,
+            "en_casa": bool(data.enCasa),
+            "actualizado_en": datetime.utcnow().isoformat(),
+        },
+    )
+    return {"ok": True, "id": rows[0].get("id") if rows else payload["id"]}
+
+
+@app.get("/api/mobile/solicitudes-casa")
+def mobile_listar_solicitudes_casa(estado: Optional[str] = None):
+    params = {"select": "*", "order": "fecha_solicitud.desc.nullslast"}
+    if estado:
+        params["estado"] = f"eq.{estado}"
+    rows = _supabase_request("GET", "solicitudes_casa", params=params) or []
+    return {"solicitudes": [_solicitud_row_to_api(row) for row in rows]}
+
+
+@app.post("/api/mobile/solicitudes-casa")
+def mobile_crear_solicitud_casa(data: SolicitudCasaCreate):
+    ahora = datetime.utcnow()
+    payload = {
+        "id": str(uuid.uuid4()),
+        "equipo_id": data.equipoId,
+        "equipo_nombre": data.equipoNombre or "",
+        "num_inventario": data.numInventario or "",
+        "persona_salida": data.solicitanteNombre or "",
+        "solicitante_nombre": data.solicitanteNombre or "",
+        "solicitante_email": data.solicitanteEmail or "",
+        "dias": data.dias or 0,
+        "motivo": data.motivo or "",
+        "notas": data.notas or "",
+        "estado": "pendiente",
+        "fecha_retorno_texto": data.fechaRetornoTexto or "",
+        "fecha_solicitud": ahora.isoformat(),
+        "fecha_inicio": ahora.isoformat(),
+        "fecha_fin": (ahora + timedelta(days=data.dias or 0)).isoformat(),
+    }
+    rows = _supabase_request("POST", "solicitudes_casa", json=payload) or []
+    return {"ok": True, "id": rows[0].get("id") if rows else payload["id"]}
+
+
+@app.patch("/api/mobile/solicitudes-casa/{solicitud_id}/decision")
+def mobile_decidir_solicitud_casa(solicitud_id: str, data: SolicitudCasaDecision):
+    payload = {
+        "estado": "aprobada" if data.autorizada else "rechazada",
+        "autorizado_por": data.autorizadoPor or "",
+    }
+    _supabase_request("PATCH", "solicitudes_casa", params={"id": f"eq.{solicitud_id}"}, json=payload)
+    return {"ok": True, "id": solicitud_id}
+
+
+@app.patch("/api/mobile/solicitudes-casa/{solicitud_id}/confirmar-salida")
+def mobile_confirmar_salida_solicitud_casa(solicitud_id: str, data: SolicitudCasaSalida):
+    rows = _supabase_request("GET", "solicitudes_casa", params={"select": "*", "id": f"eq.{solicitud_id}", "limit": "1"}) or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    solicitud = rows[0]
+    guardia = data.guardia or ""
+    _supabase_request(
+        "PATCH",
+        "solicitudes_casa",
+        params={"id": f"eq.{solicitud_id}"},
+        json={
+            "estado": "salida_confirmada",
+            "salida_confirmada_por": guardia,
+            "fecha_salida_confirmada": datetime.utcnow().isoformat(),
+        },
+    )
+    equipo_id = solicitud.get("equipo_id")
+    if equipo_id:
+        _supabase_request(
+            "PATCH",
+            "equipos",
+            params={"id": f"eq.{equipo_id}"},
+            json={
+                "estado": "Fuera del parque con permiso",
+                "dentro": False,
+                "en_casa": True,
+                "asignado": solicitud.get("solicitante_nombre") or solicitud.get("persona_salida") or "",
+                "actualizado_en": datetime.utcnow().isoformat(),
+            },
+        )
+    return {"ok": True, "id": solicitud_id}
 
 
 @app.post("/api/usuarios/cambiar-password")

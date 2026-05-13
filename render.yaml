@@ -18,6 +18,10 @@ services:
           property: connectionString
       - key: GOOGLE_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: FIREBASE_CREDENTIALS_PATH
         sync: false
       - key: OFFICE_LAT
