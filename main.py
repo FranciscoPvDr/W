@@ -714,23 +714,27 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
     try:
         docs = firebase_client.collection("equipos").stream()
         assets = []
+        omitidos = []
         for doc in docs:
-            data = doc.to_dict() or {}
-            assets.append({
-                "id": doc.id,
-                "numInventario": _safe_firestore_text(data.get("numInventario")),
-                "serie": _safe_firestore_text(data.get("serie")),
-                "tipo": _safe_firestore_text(data.get("tipo")),
-                "marca": _safe_firestore_text(data.get("marca")),
-                "modelo": _safe_firestore_text(data.get("modelo")),
-                "subtipo": _safe_firestore_text(data.get("subtipo")),
-                "notas": _safe_firestore_text(data.get("notas")),
-                "fechaCompra": _safe_firestore_text(data.get("fechaCompra")),
-                "asignado": _safe_firestore_text(data.get("asignado")),
-                "departamento": _safe_firestore_text(data.get("departamento")),
-                "puesto": _safe_firestore_text(data.get("puesto")),
-            })
-        return {"assets": assets}
+            try:
+                data = doc.to_dict() or {}
+                assets.append({
+                    "id": _safe_firestore_text(doc.id),
+                    "numInventario": _safe_firestore_text(data.get("numInventario")),
+                    "serie": _safe_firestore_text(data.get("serie")),
+                    "tipo": _safe_firestore_text(data.get("tipo")),
+                    "marca": _safe_firestore_text(data.get("marca")),
+                    "modelo": _safe_firestore_text(data.get("modelo")),
+                    "subtipo": _safe_firestore_text(data.get("subtipo")),
+                    "notas": _safe_firestore_text(data.get("notas")),
+                    "fechaCompra": _safe_firestore_text(data.get("fechaCompra")),
+                    "asignado": _safe_firestore_text(data.get("asignado")),
+                    "departamento": _safe_firestore_text(data.get("departamento")),
+                    "puesto": _safe_firestore_text(data.get("puesto")),
+                })
+            except Exception as e:
+                omitidos.append({"id": _safe_firestore_text(getattr(doc, "id", "")), "error": str(e)})
+        return {"assets": assets, "omitidos": omitidos}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudieron cargar assets: {e}")
 
