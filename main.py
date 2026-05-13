@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, text
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Integer, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -149,6 +149,9 @@ class PingLog(Base):
     lat       = Column(Float, nullable=True)
     lng       = Column(Float, nullable=True)
     accuracy  = Column(Float, nullable=True)
+    usb_storage_blocked = Column(Boolean, nullable=True)
+    usb_storage_devices = Column(Integer, nullable=True)
+    usb_block_error = Column(String, nullable=True)
 
 
 class Equipo(Base):
@@ -165,6 +168,11 @@ class Equipo(Base):
     lat         = Column(Float, nullable=True)
     lng         = Column(Float, nullable=True)
     accuracy    = Column(Float, nullable=True)
+    usb_storage_blocked = Column(Boolean, nullable=True)
+    usb_storage_policy = Column(Boolean, nullable=True)
+    usb_storage_devices = Column(Integer, nullable=True)
+    usb_block_error = Column(String, nullable=True)
+    usb_updated_at = Column(DateTime, nullable=True)
 
 
 class Usuario(Base):
@@ -187,10 +195,26 @@ def _ensure_sqlite_columns():
         equipos_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(equipos)"))}
         if "serial_number" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN serial_number TEXT"))
+        if "usb_storage_blocked" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_blocked BOOLEAN"))
+        if "usb_storage_policy" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_policy BOOLEAN"))
+        if "usb_storage_devices" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_devices INTEGER"))
+        if "usb_block_error" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_block_error TEXT"))
+        if "usb_updated_at" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_updated_at DATETIME"))
 
         ping_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(ping_logs)"))}
         if "serial_number" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN serial_number TEXT"))
+        if "usb_storage_blocked" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_blocked BOOLEAN"))
+        if "usb_storage_devices" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_devices INTEGER"))
+        if "usb_block_error" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_block_error TEXT"))
         conn.commit()
 
 
@@ -235,6 +259,13 @@ class PingRequest(BaseModel):
     sistema:       Optional[str] = ""
     timestamp:     str
     wifi_networks: Optional[List[WifiNetwork]] = []
+    usb_storage_blocked: Optional[bool] = None
+    usb_storage_devices: Optional[int] = None
+    usb_block_error: Optional[str] = ""
+
+
+class UsbPolicyUpdate(BaseModel):
+    block_usb_storage: bool
 
 
 class UsuarioCreate(BaseModel):
@@ -339,6 +370,11 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "ultimoPing": ultimo_ping_iso,
         "primerPing": primer_ping_iso,
         "actualizadoEn": datetime.utcnow().isoformat(),
+        "usbStorageBlocked": equipo.usb_storage_blocked,
+        "usbStoragePolicy": equipo.usb_storage_policy,
+        "usbStorageDevices": equipo.usb_storage_devices,
+        "usbBlockError": equipo.usb_block_error or "",
+        "usbUpdatedAt": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
     }
     if serie:
         payload["serie"] = serie
@@ -381,6 +417,62 @@ def _obtener_asignacion_firestore(equipo: Equipo):
         "numInventario": doc_data.get("numInventario", "") or "",
         "inventariado": bool(doc_data.get("numInventario") or doc_data.get("asignado") or doc_data.get("tipo")),
     }
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _equipo_firestore_a_resultado(doc_id: str, data: dict, limite_offline: datetime):
+    ultimo_ping_dt = _parse_iso_datetime(data.get("ultimoPing") or data.get("ultimo_ping") or data.get("actualizadoEn"))
+    online = ultimo_ping_dt >= limite_offline if ultimo_ping_dt else False
+    geo = data.get("geo") if isinstance(data.get("geo"), dict) else {}
+    return {
+        "device_id": data.get("deviceId") or data.get("device_id") or doc_id,
+        "serial_number": data.get("serie") or data.get("serial_number") or "",
+        "numInventario": data.get("numInventario", "") or "",
+        "asignado": data.get("asignado", "") or "",
+        "departamento": data.get("departamento", "") or "",
+        "puesto": data.get("puesto", "") or "",
+        "inventariado": bool(data.get("inventariado") or data.get("numInventario") or data.get("asignado") or data.get("tipo")),
+        "hostname": data.get("hostname", "") or "",
+        "ip": data.get("ip", "") or "",
+        "ssid": data.get("ssid", "") or "",
+        "dentro": bool(data.get("dentro", False)),
+        "online": online,
+        "sistema": data.get("sistema", "") or "",
+        "ultimo_ping": ultimo_ping_dt.isoformat() if ultimo_ping_dt else None,
+        "lat": data.get("lat", geo.get("lat")),
+        "lng": data.get("lng", geo.get("lng")),
+        "accuracy": data.get("accuracy", geo.get("accuracy")),
+        "usb_storage_blocked": data.get("usbStorageBlocked"),
+        "usb_storage_policy": data.get("usbStoragePolicy"),
+        "usb_storage_devices": data.get("usbStorageDevices"),
+        "usb_block_error": data.get("usbBlockError", "") or "",
+        "usb_updated_at": data.get("usbUpdatedAt"),
+    }
+
+
+def _eliminar_doc_firestore_equipo(equipo: Equipo):
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        return
+    try:
+        serie = (equipo.serial_number or "").strip()
+        if serie:
+            docs = firebase_client.collection("equipos").where("serie", "==", serie).stream()
+            for doc in docs:
+                doc.reference.delete()
+        firebase_client.collection("equipos").document(equipo.device_id).delete()
+    except Exception as e:
+        print(f"No se pudo eliminar equipo de Firestore: {e}")
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -638,7 +730,10 @@ async def recibir_ping(data: PingRequest):
             timestamp = ahora,
             lat       = lat,
             lng       = lng,
-            accuracy  = accuracy
+            accuracy  = accuracy,
+            usb_storage_blocked = data.usb_storage_blocked,
+            usb_storage_devices = data.usb_storage_devices,
+            usb_block_error = data.usb_block_error or ""
         )
         db.add(log)
 
@@ -667,6 +762,12 @@ async def recibir_ping(data: PingRequest):
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
+            equipo.usb_storage_blocked = data.usb_storage_blocked
+            if equipo.usb_storage_policy is None and data.usb_storage_blocked is not None:
+                equipo.usb_storage_policy = data.usb_storage_blocked
+            equipo.usb_storage_devices = data.usb_storage_devices
+            equipo.usb_block_error = data.usb_block_error or ""
+            equipo.usb_updated_at = ahora
             if lat:
                 equipo.lat      = lat
                 equipo.lng      = lng
@@ -684,7 +785,12 @@ async def recibir_ping(data: PingRequest):
                 primer_ping = ahora,
                 lat         = lat,
                 lng         = lng,
-                accuracy    = accuracy
+                accuracy    = accuracy,
+                usb_storage_blocked = data.usb_storage_blocked,
+                usb_storage_policy = data.usb_storage_blocked,
+                usb_storage_devices = data.usb_storage_devices,
+                usb_block_error = data.usb_block_error or "",
+                usb_updated_at = ahora
             )
             db.add(equipo)
 
@@ -697,6 +803,18 @@ async def recibir_ping(data: PingRequest):
         db.close()
 
 
+@app.get("/api/equipos/{device_id}/usb-policy")
+def obtener_usb_policy(device_id: str):
+    db = Session()
+    try:
+        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
+        if not equipo:
+            return {"block_usb_storage": None}
+        return {"block_usb_storage": equipo.usb_storage_policy}
+    finally:
+        db.close()
+
+
 # ── Endpoints protegidos ───────────────────────────────────────────────────
 
 @app.get("/api/equipos")
@@ -705,11 +823,11 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
     try:
         equipos = db.query(Equipo).all()
         limite_offline = datetime.utcnow() - timedelta(minutes=2)
-        resultado = []
+        resultado_por_clave = {}
         for e in equipos:
             online = e.ultimo_ping >= limite_offline if e.ultimo_ping else False
             asignacion = _obtener_asignacion_firestore(e)
-            resultado.append({
+            item = {
                 "device_id":   e.device_id,
                 "serial_number": e.serial_number,
                 "numInventario": asignacion.get("numInventario", ""),
@@ -727,8 +845,51 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "lat":         e.lat,
                 "lng":         e.lng,
                 "accuracy":    e.accuracy,
-            })
+                "usb_storage_blocked": e.usb_storage_blocked,
+                "usb_storage_policy": e.usb_storage_policy,
+                "usb_storage_devices": e.usb_storage_devices,
+                "usb_block_error": e.usb_block_error,
+                "usb_updated_at": e.usb_updated_at.isoformat() if e.usb_updated_at else None,
+            }
+            resultado_por_clave[(e.serial_number or e.device_id or "").strip()] = item
+
+        firebase_client = _get_firebase_db()
+        if firebase_client:
+            try:
+                for doc in firebase_client.collection("equipos").stream():
+                    data = doc.to_dict() or {}
+                    if not (data.get("deviceId") or data.get("device_id") or data.get("serie") or data.get("serial_number")):
+                        continue
+                    item = _equipo_firestore_a_resultado(doc.id, data, limite_offline)
+                    clave = (item.get("serial_number") or item.get("device_id") or doc.id).strip()
+                    if clave not in resultado_por_clave:
+                        resultado_por_clave[clave] = item
+            except Exception as e:
+                print(f"No se pudieron cargar equipos desde Firestore: {e}")
+
+        resultado = sorted(
+            resultado_por_clave.values(),
+            key=lambda x: x.get("ultimo_ping") or "",
+            reverse=True
+        )
         return {"equipos": resultado, "total": len(resultado)}
+    finally:
+        db.close()
+
+
+@app.patch("/api/equipos/{device_id}/usb-policy")
+def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    db = Session()
+    try:
+        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
+        if not equipo:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        equipo.usb_storage_policy = data.block_usb_storage
+        db.commit()
+        sync_equipo_to_firestore(equipo, equipo.serial_number)
+        accion = "bloquear" if data.block_usb_storage else "habilitar"
+        return {"ok": True, "mensaje": f"Politica USB actualizada: {accion}", "block_usb_storage": data.block_usb_storage}
     finally:
         db.close()
 
@@ -749,6 +910,7 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
         # Borrar historial de pings asociado
         db.query(PingLog).filter_by(device_id=device_id).delete()
+        _eliminar_doc_firestore_equipo(equipo)
         db.delete(equipo)
         db.commit()
         print(f"Equipo eliminado: {device_id} ({equipo.hostname})")

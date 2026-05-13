@@ -814,11 +814,11 @@
             <tr>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
               <th>IP</th><th>Red / SSID</th><th>Estado</th>
-              <th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
+              <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
-            <tr><td colspan="10"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
+            <tr><td colspan="11"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -923,6 +923,21 @@
 
   function abrirEnMaps(lat, lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
 
+  function usbLabel(e) {
+    const state = e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
+    const policy = e.usb_storage_policy === true ? '<div class="accuracy">política: bloquear</div>' : e.usb_storage_policy === false ? '<div class="accuracy">política: habilitar</div>' : '';
+    const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
+    const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
+    return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${policy}${error}`;
+  }
+
+  function usbActionButton(e) {
+    if (CURRENT_USERNAME !== 'admin') return '';
+    const shouldBlock = e.usb_storage_policy !== true;
+    const label = shouldBlock ? 'Bloquear USB' : 'Habilitar USB';
+    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
+  }
+
   function renderTabla(equipos) {
     const tbody = document.getElementById('tabla-equipos');
     let filtered = equipos;
@@ -937,7 +952,7 @@
     if (currentFilter === 'fuera') filtered = equipos.filter(e => !e.dentro);
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
       return;
     }
 
@@ -957,13 +972,14 @@
             <span class="badge ${e.dentro ? 'badge-dentro' : 'badge-fuera'}">${e.dentro ? 'dentro' : 'fuera'}</span>
           </div>
         </td>
+        <td>${usbLabel(e)}</td>
         <td>${e.lat
           ? `<div class="coords">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div><div class="accuracy">±${Math.round(e.accuracy)}m</div>`
           : `<span style="font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--text3)">sin geo</span>`}
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})">Ver</button>` : '—'}</td>
-        <td>${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
+        <td>${usbActionButton(e)} ${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
       </tr>
     `).join('');
   }
@@ -1049,6 +1065,22 @@
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
       await fetchData();
     } catch { alert('No se pudo conectar al servidor'); }
+  }
+
+  async function actualizarUsbPolicy(deviceId, blockUsbStorage) {
+    const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
+    if (!confirm(`¿Quieres ${accion} almacenamiento USB en este equipo?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador.`)) return;
+    try {
+      const res = await fetch(`${SERVER}/api/equipos/${deviceId}/usb-policy`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ block_usb_storage: blockUsbStorage })
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
+      await fetchData();
+    } catch {
+      alert('No se pudo conectar al servidor');
+    }
   }
 
   async function cargarUsuarios() {
