@@ -988,8 +988,11 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
     cached = _cache_get("assets")
     if cached is not None:
         return cached
-    rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-    resultado = {"assets": _assets_rows_to_api(rows), "omitidos": []}
+    try:
+        rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+        resultado = {"assets": _assets_rows_to_api(rows), "omitidos": []}
+    except Exception as e:
+        resultado = {"assets": [], "omitidos": [{"error": str(e)}]}
     _cache_set("assets", resultado)
     return resultado
 
@@ -1097,8 +1100,11 @@ def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=De
 
 @app.get("/api/mobile/assets")
 def mobile_listar_assets():
-    rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-    return {"assets": _assets_rows_to_api(rows), "omitidos": []}
+    try:
+        rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+        return {"assets": _assets_rows_to_api(rows), "omitidos": []}
+    except Exception as e:
+        return {"assets": [], "omitidos": [{"error": str(e)}]}
 
 
 @app.get("/api/mobile/movimientos")
