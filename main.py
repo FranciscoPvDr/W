@@ -1524,6 +1524,7 @@ def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends
         if not equipo:
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
         equipo.usb_storage_policy = data.block_usb_storage
+        equipo.usb_updated_at = datetime.utcnow()
         db.commit()
         sync_equipo_to_firestore(equipo, equipo.serial_number)
         accion = "bloquear" if data.block_usb_storage else "habilitar"
@@ -1542,8 +1543,10 @@ def actualizar_usb_policy_bulk(data: UsbPolicyBulkUpdate, usuario=Depends(get_us
     try:
         equipos = db.query(Equipo).filter(Equipo.device_id.in_(ids)).all()
         encontrados = {e.device_id for e in equipos}
+        ahora = datetime.utcnow()
         for equipo in equipos:
             equipo.usb_storage_policy = data.block_usb_storage
+            equipo.usb_updated_at = ahora
         db.commit()
         for equipo in equipos:
             sync_equipo_to_firestore(equipo, equipo.serial_number)
