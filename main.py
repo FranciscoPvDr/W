@@ -302,6 +302,19 @@ class AssetAsignacion(BaseModel):
     puesto: Optional[str] = ""
 
 
+class EmpleadoCreate(BaseModel):
+    numEmpleado: Optional[str] = ""
+    nombre: str
+    apellidoPaterno: Optional[str] = ""
+    apellidoMaterno: Optional[str] = ""
+    correo: Optional[str] = ""
+    departamento: Optional[str] = ""
+    puesto: Optional[str] = ""
+    telefono: Optional[str] = ""
+    fechaIngreso: Optional[str] = ""
+    activo: Optional[bool] = True
+
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
@@ -490,6 +503,18 @@ def _eliminar_doc_firestore_equipo(equipo: Equipo):
         firebase_client.collection("equipos").document(equipo.device_id).delete()
     except Exception as e:
         print(f"No se pudo eliminar equipo de Firestore: {e}")
+
+
+def _nombre_completo_empleado(data: dict) -> str:
+    nombre_completo = (data.get("nombreCompleto") or "").strip()
+    if nombre_completo:
+        return nombre_completo
+    partes = [
+        data.get("nombre", ""),
+        data.get("apellidoPaterno", ""),
+        data.get("apellidoMaterno", ""),
+    ]
+    return " ".join(str(p).strip() for p in partes if str(p).strip())
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -705,6 +730,65 @@ def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
         raise HTTPException(status_code=500, detail=f"No se pudo eliminar asset: {e}")
 
 
+@app.get("/api/empleados")
+def listar_empleados(usuario=Depends(get_usuario_actual)):
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    try:
+        empleados = []
+        for doc in firebase_client.collection("empleados").stream():
+            data = doc.to_dict() or {}
+            empleados.append({
+                "id": doc.id,
+                "numEmpleado": data.get("numEmpleado", "") or "",
+                "nombre": data.get("nombre", "") or "",
+                "apellidoPaterno": data.get("apellidoPaterno", "") or "",
+                "apellidoMaterno": data.get("apellidoMaterno", "") or "",
+                "nombreCompleto": _nombre_completo_empleado(data),
+                "correo": data.get("correo", "") or "",
+                "departamento": data.get("departamento", "") or "",
+                "puesto": data.get("puesto", "") or "",
+                "telefono": data.get("telefono", "") or "",
+                "fechaIngreso": data.get("fechaIngreso", "") or "",
+                "activo": data.get("activo", True),
+            })
+        empleados.sort(key=lambda x: x.get("nombreCompleto", ""))
+        return {"empleados": empleados}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudieron cargar empleados: {e}")
+
+
+@app.post("/api/empleados")
+def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    nombre_completo = " ".join(
+        p.strip() for p in [data.nombre, data.apellidoPaterno or "", data.apellidoMaterno or ""] if p.strip()
+    )
+    payload = {
+        "activo": bool(data.activo),
+        "apellidoMaterno": (data.apellidoMaterno or "").strip(),
+        "apellidoPaterno": (data.apellidoPaterno or "").strip(),
+        "correo": (data.correo or "").strip(),
+        "departamento": (data.departamento or "").strip(),
+        "fechaIngreso": (data.fechaIngreso or "").strip(),
+        "nombre": data.nombre.strip(),
+        "nombreCompleto": nombre_completo,
+        "numEmpleado": (data.numEmpleado or "").strip(),
+        "puesto": (data.puesto or "").strip(),
+        "telefono": (data.telefono or "").strip(),
+    }
+    doc_id = payload["numEmpleado"] or str(uuid.uuid4())
+    try:
+        firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
+        return {"ok": True, "id": doc_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar empleado: {e}")
+
+
 @app.patch("/api/assets/{asset_id}/asignacion")
 def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
@@ -912,6 +996,9 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
             try:
                 for doc in firebase_client.collection("equipos").stream():
                     data = doc.to_dict() or {}
+                    tipo = str(data.get("tipo", "") or "").strip().lower()
+                    if tipo and tipo not in ["laptop", "desktop", "escritorio", "pc", "computadora"]:
+                        continue
                     if not (data.get("deviceId") or data.get("device_id") or data.get("serie") or data.get("serial_number")):
                         continue
                     item = _equipo_firestore_a_resultado(doc.id, data, limite_offline)
