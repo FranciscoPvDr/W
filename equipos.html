@@ -20,6 +20,19 @@
     .inline { grid-template-columns: minmax(180px,1.4fr) minmax(120px,1fr) minmax(120px,1fr); }
     .pill { white-space: normal; }
     .btn { white-space: nowrap; margin: 2px 0; }
+    .grid { grid-template-columns: 340px minmax(0, 1fr); align-items: start; }
+    .assets-card { padding: 20px; }
+    .assets-header { display: grid; grid-template-columns: 1fr minmax(260px, 420px); gap: 14px; align-items: end; margin-bottom: 14px; }
+    .assets-header h2 { margin: 0 0 4px; font-size: 1.25rem; }
+    .assets-header .muted { line-height: 1.35; }
+    .assets-search label { margin-top: 0; }
+    .tabs { margin: 0 0 14px; padding-bottom: 2px; }
+    .tab { box-shadow: inset 0 0 0 1px rgba(255,255,255,.02); }
+    .tab.active { background: #10223a; }
+    .tablewrap { border: 1px solid var(--border); border-radius: 14px; }
+    thead tr { background: rgba(13,17,23,.86); }
+    tbody tr:hover td { background: rgba(88,166,255,.05); }
+    @media(max-width:980px){.assets-header{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -39,22 +52,18 @@
         <label>Puesto</label><input id="puesto" />
         <button class="btn primary" onclick="crearAsset()">Guardar asset</button><div class="muted" id="msg"></div>
       </section>
-      <section class="card">
-        <h2>Agregar empleado</h2>
-        <label>No. empleado</label><input id="empNum" placeholder="A-00011" />
-        <label>Nombre</label><input id="empNombre" />
-        <label>Apellido paterno</label><input id="empPaterno" />
-        <label>Apellido materno</label><input id="empMaterno" />
-        <label>Departamento</label><input id="empDepto" />
-        <label>Puesto</label><input id="empPuesto" />
-        <label>Correo</label><input id="empCorreo" />
-        <label>Teléfono</label><input id="empTelefono" />
-        <label>Fecha ingreso</label><input id="empIngreso" placeholder="06/01/2025" />
-        <button class="btn primary" onclick="crearEmpleado()">Guardar empleado</button><div class="muted" id="empMsg"></div>
-      </section>
     </div>
-    <section class="card">
-      <div class="toolbar"><h2>Assets por tipo</h2><input id="q" placeholder="Buscar por serie, inventario, asignado..." oninput="render()" /></div>
+    <section class="card assets-card">
+      <div class="assets-header">
+        <div>
+          <h2>Assets por tipo</h2>
+          <div class="muted">Consulta, filtra y reasigna los activos guardados en Firebase.</div>
+        </div>
+        <div class="assets-search">
+          <label>Buscar</label>
+          <input id="q" placeholder="Serie, inventario, asignado..." oninput="render()" />
+        </div>
+      </div>
       <div id="tabs" class="tabs"></div>
       <div class="tablewrap"><table><thead><tr><th>Asset</th><th>Tipo</th><th>Asignación</th><th>Reasignar</th><th>Acciones</th></tr></thead><tbody id="tbody"></tbody></table></div>
     </section>
@@ -71,6 +80,5 @@ function aplicarEmpleado(id){const e=empByName(document.getElementById(`asig-${i
 function tipos(){return ['Todos',...Array.from(new Set(assets.map(a=>a.tipo||'Otro'))).sort()]}function renderTabs(){tabs.innerHTML=tipos().map(t=>`<button class="tab ${t===tipoActual?'active':''}" onclick="tipoActual='${t}';renderTabs();render()">${t}</button>`).join('')}
 function render(){const term=(q.value||'').toLowerCase();let rows=assets.filter(a=>tipoActual==='Todos'||(a.tipo||'Otro')===tipoActual).filter(a=>JSON.stringify(a).toLowerCase().includes(term));tbody.innerHTML=rows.map(a=>`<tr><td><strong>${a.numInventario||'Sin inventario'}</strong><div class="muted">Serie: ${a.serie||'—'} · ${a.marca||''} ${a.modelo||''}</div></td><td><span class="pill">${a.tipo||'Otro'}</span></td><td>${a.asignado||'<span class="muted">Sin asignar</span>'}<div class="muted">${a.departamento||''} ${a.puesto?`· ${a.puesto}`:''}</div></td><td><div class="inline"><select id="asig-${a.id}" onchange="aplicarEmpleado('${a.id}')">${empleadoOptions(a.asignado)}</select><input id="dep-${a.id}" placeholder="Depto" value="${esc(a.departamento)}"><input id="pto-${a.id}" placeholder="Puesto" value="${esc(a.puesto)}"></div></td><td><button class="btn primary" onclick="asignar('${a.id}')">Guardar</button> <button class="btn" onclick="desasignar('${a.id}')">Desasignar</button> <button class="btn danger" onclick="eliminar('${a.id}')">Eliminar</button></td></tr>`).join('')||'<tr><td colspan="5">Sin assets</td></tr>'}
 async function crearAsset(){const payload={tipo:tipo.value,numInventario:numInventario.value.trim(),serie:serie.value.trim(),marca:marca.value.trim(),modelo:modelo.value.trim(),asignado:asignado.value.trim(),departamento:departamento.value.trim(),puesto:puesto.value.trim()};if(!payload.serie&&!payload.numInventario){alert('Captura serie o número de inventario');return}const res=await fetch(`${SERVER}/api/assets`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(payload)});msg.textContent=res.ok?'Guardado en Firebase':'No se pudo guardar';if(res.ok){['numInventario','serie','marca','modelo','departamento','puesto'].forEach(id=>window[id].value='');asignado.value='';cargar()}}
-async function crearEmpleado(){const payload={numEmpleado:empNum.value.trim(),nombre:empNombre.value.trim(),apellidoPaterno:empPaterno.value.trim(),apellidoMaterno:empMaterno.value.trim(),correo:empCorreo.value.trim(),departamento:empDepto.value.trim(),puesto:empPuesto.value.trim(),telefono:empTelefono.value.trim(),fechaIngreso:empIngreso.value.trim(),activo:true};if(!payload.nombre){alert('Captura nombre');return}const res=await fetch(`${SERVER}/api/empleados`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(payload)});empMsg.textContent=res.ok?'Empleado guardado':'No se pudo guardar empleado';if(res.ok){['empNum','empNombre','empPaterno','empMaterno','empCorreo','empDepto','empPuesto','empTelefono','empIngreso'].forEach(id=>window[id].value='');cargar()}}
 async function asignar(id){const payload={asignado:document.getElementById(`asig-${id}`).value.trim(),departamento:document.getElementById(`dep-${id}`).value.trim(),puesto:document.getElementById(`pto-${id}`).value.trim()};const res=await fetch(`${SERVER}/api/assets/${encodeURIComponent(id)}/asignacion`,{method:'PATCH',headers:jsonHeaders(),body:JSON.stringify(payload)});if(!res.ok)alert('No se pudo asignar');cargar()}async function desasignar(id){if(!confirm('¿Desasignar este asset?'))return;const res=await fetch(`${SERVER}/api/assets/${encodeURIComponent(id)}/asignacion`,{method:'PATCH',headers:jsonHeaders(),body:JSON.stringify({asignado:'',departamento:'',puesto:''})});if(!res.ok)alert('No se pudo desasignar');cargar()}async function eliminar(id){if(!confirm('¿Eliminar asset de Firebase?'))return;const res=await fetch(`${SERVER}/api/assets/${encodeURIComponent(id)}`,{method:'DELETE',headers:headers()});if(!res.ok)alert('No se pudo eliminar');cargar()}cargar();
 </script></body></html>
