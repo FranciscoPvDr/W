@@ -69,6 +69,9 @@ HEADERS = {
 USBSTOR_REG_PATH = r"SYSTEM\CurrentControlSet\Services\USBSTOR"
 USB_STORAGE_ENABLE_VALUE = 3
 USB_STORAGE_DISABLE_VALUE = 4
+DEVICE_INSTALL_RESTRICTIONS_PATH = r"SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions"
+DENY_DEVICE_CLASSES_PATH = DEVICE_INSTALL_RESTRICTIONS_PATH + r"\DenyDeviceClasses"
+WPD_CLASS_GUID = "{EEC5AD98-8080-425F-922A-DABF3DE3F69A}"
 
 
 def log(msg):
@@ -182,6 +185,63 @@ def set_usb_storage_blocked(blocked):
         return current, str(e) or current_error
 
 
+def get_portable_devices_blocked():
+    if platform.system() != "Windows":
+        return None, "solo_windows"
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, DENY_DEVICE_CLASSES_PATH, 0, winreg.KEY_READ) as key:
+            index = 0
+            while True:
+                try:
+                    _, value, _ = winreg.EnumValue(key, index)
+                    if str(value).upper() == WPD_CLASS_GUID:
+                        return True, ""
+                    index += 1
+                except OSError:
+                    break
+        return False, ""
+    except FileNotFoundError:
+        return False, ""
+    except Exception as e:
+        return None, str(e)
+
+
+def set_portable_devices_blocked(blocked):
+    if platform.system() != "Windows":
+        return None, "solo_windows"
+    if not is_windows_admin():
+        current, current_error = get_portable_devices_blocked()
+        return current, current_error or "requiere_permisos_administrador"
+    try:
+        if blocked:
+            with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, DEVICE_INSTALL_RESTRICTIONS_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, "DenyDeviceClasses", 0, winreg.REG_DWORD, 1)
+                winreg.SetValueEx(key, "DenyDeviceClassesRetroactive", 0, winreg.REG_DWORD, 1)
+            with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, DENY_DEVICE_CLASSES_PATH, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, "1", 0, winreg.REG_SZ, WPD_CLASS_GUID)
+            return True, ""
+
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, DENY_DEVICE_CLASSES_PATH, 0, winreg.KEY_ALL_ACCESS) as key:
+            names_to_delete = []
+            index = 0
+            while True:
+                try:
+                    name, value, _ = winreg.EnumValue(key, index)
+                    if str(value).upper() == WPD_CLASS_GUID:
+                        names_to_delete.append(name)
+                    index += 1
+                except OSError:
+                    break
+            for name in names_to_delete:
+                winreg.DeleteValue(key, name)
+        return False, ""
+    except FileNotFoundError:
+        return False, ""
+    except Exception as e:
+        current, current_error = get_portable_devices_blocked()
+        return current, str(e) or current_error
+
+
 def count_usb_storage_devices():
     if platform.system() != "Windows":
         return None
@@ -215,16 +275,22 @@ def get_usb_policy(device_id):
 
 def aplicar_usb_policy(device_id):
     policy = get_usb_policy(device_id)
-    error = ""
+    errors = []
     if policy is not None:
         blocked, error = set_usb_storage_blocked(bool(policy))
+        portable_blocked, portable_error = set_portable_devices_blocked(bool(policy))
     else:
         blocked, error = get_usb_storage_blocked()
+        portable_blocked, portable_error = get_portable_devices_blocked()
+    if error:
+        errors.append(f"storage:{error}")
+    if portable_error:
+        errors.append(f"portable:{portable_error}")
     devices = count_usb_storage_devices()
     return {
-        "usb_storage_blocked": blocked,
+        "usb_storage_blocked": bool(blocked) or bool(portable_blocked),
         "usb_storage_devices": devices,
-        "usb_block_error": error or ""
+        "usb_block_error": "; ".join(errors)
     }
 
 

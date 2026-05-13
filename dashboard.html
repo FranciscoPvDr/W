@@ -818,8 +818,8 @@
     <div id="lista-view">
       <div id="bulk-actions" class="bulk-actions">
         <span class="bulk-count" id="bulk-count">0 equipos seleccionados</span>
-        <button class="map-btn" onclick="actualizarUsbPolicyBulk(true)">Bloquear USB seleccionados</button>
-        <button class="map-btn" onclick="actualizarUsbPolicyBulk(false)">Habilitar USB seleccionados</button>
+        <button class="map-btn" onclick="actualizarUsbPolicyBulk(true)">Bloquear memorias/celulares</button>
+        <button class="map-btn" onclick="actualizarUsbPolicyBulk(false)">Habilitar memorias/celulares</button>
         <button class="map-btn" onclick="limpiarSeleccion()">Limpiar</button>
       </div>
       <div class="table-wrap">
@@ -956,7 +956,7 @@
 
   function usbLabel(e) {
     const state = e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
-    const policy = e.usb_storage_policy === true ? '<div class="accuracy">política: bloquear</div>' : e.usb_storage_policy === false ? '<div class="accuracy">política: habilitar</div>' : '';
+    const policy = e.usb_storage_policy === true ? '<div class="accuracy">política: bloquear archivos USB/MTP</div>' : e.usb_storage_policy === false ? '<div class="accuracy">política: habilitar archivos USB/MTP</div>' : '';
     const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
     const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
     return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${policy}${error}`;
@@ -965,7 +965,7 @@
   function usbActionButton(e) {
     if (CURRENT_USERNAME !== 'admin') return '';
     const shouldBlock = e.usb_storage_policy !== true;
-    const label = shouldBlock ? 'Bloquear USB' : 'Habilitar USB';
+    const label = shouldBlock ? 'Bloquear USB/MTP' : 'Habilitar USB/MTP';
     return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
   }
 
@@ -1146,7 +1146,7 @@
 
   async function actualizarUsbPolicy(deviceId, blockUsbStorage) {
     const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
-    if (!confirm(`¿Quieres ${accion} almacenamiento USB en este equipo?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador.`)) return;
+    if (!confirm(`¿Quieres ${accion} memorias USB y celulares/MTP en este equipo?\nMouse, teclado y dongles no se bloquean. El sensor lo aplicará en el siguiente ping y requiere permisos de administrador.`)) return;
     try {
       const res = await fetch(`${SERVER}/api/equipos/${deviceId}/usb-policy`, {
         method: 'PATCH',
@@ -1164,7 +1164,7 @@
     const ids = Array.from(selectedEquipos);
     if (!ids.length) { alert('Selecciona al menos un equipo'); return; }
     const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
-    if (!confirm(`¿Quieres ${accion} almacenamiento USB en ${ids.length} equipo(s)?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador en cada laptop.`)) return;
+    if (!confirm(`¿Quieres ${accion} memorias USB y celulares/MTP en ${ids.length} equipo(s)?\nMouse, teclado y dongles no se bloquean. El sensor lo aplicará en el siguiente ping y requiere permisos de administrador en cada laptop.`)) return;
     try {
       const res = await fetch(`${SERVER}/api/equipos/usb-policy/bulk`, {
         method: 'PATCH',
