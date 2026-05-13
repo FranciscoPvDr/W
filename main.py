@@ -421,10 +421,10 @@ def _buscar_asset_supabase_por_serie(serie: str):
     except Exception as e:
         print(f"No se pudo buscar asset por serie en Supabase: {e}")
         return None
-    for row in rows:
-        if _normalizar_serie(row.get("serie")) == serie_norm:
-            return row
-    return None
+    matches = [row for row in rows if isinstance(row, dict) and _normalizar_serie(row.get("serie")) == serie_norm]
+    if not matches:
+        return None
+    return sorted(matches, key=_asset_score, reverse=True)[0]
 
 
 def _asset_tipo_normalizado(row: dict) -> str:
