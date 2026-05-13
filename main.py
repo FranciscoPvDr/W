@@ -181,6 +181,7 @@ class Usuario(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     nombre   = Column(String)
+    role     = Column(String, default="ingeniero")
     activo   = Column(Boolean, default=True)
 
 
@@ -215,6 +216,10 @@ def _ensure_sqlite_columns():
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_devices INTEGER"))
         if "usb_block_error" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_block_error TEXT"))
+        usuarios_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(usuarios)"))}
+        if "role" not in usuarios_cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'ingeniero'"))
+        conn.execute(text("UPDATE usuarios SET role = 'super_admin' WHERE username = 'admin' AND (role IS NULL OR role = '')"))
         conn.commit()
 
 
@@ -232,6 +237,7 @@ def crear_admin():
                 username = "admin",
                 password = pwd_context.hash("admin123"),
                 nombre   = "Administrador",
+                role     = "super_admin",
                 activo   = True
             )
             db.add(admin)
@@ -272,6 +278,11 @@ class UsuarioCreate(BaseModel):
     username: str
     password: str
     nombre:   str
+    role: Optional[str] = "ingeniero"
+
+
+class UsuarioRoleUpdate(BaseModel):
+    role: str
 
 
 class AssetCreate(BaseModel):
@@ -280,6 +291,12 @@ class AssetCreate(BaseModel):
     tipo: Optional[str] = "Laptop"
     marca: Optional[str] = ""
     modelo: Optional[str] = ""
+    asignado: Optional[str] = ""
+    departamento: Optional[str] = ""
+    puesto: Optional[str] = ""
+
+
+class AssetAsignacion(BaseModel):
     asignado: Optional[str] = ""
     departamento: Optional[str] = ""
     puesto: Optional[str] = ""
@@ -545,8 +562,8 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
         usuario = db.query(Usuario).filter_by(username=form.username, activo=True).first()
         if not usuario or not verificar_password(form.password, usuario.password):
             raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
-        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre})
-        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "username": usuario.username}
+        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": usuario.role or "ingeniero"})
+        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "username": usuario.username, "role": usuario.role or "ingeniero"}
     finally:
         db.close()
 
@@ -569,6 +586,7 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
             username = data.username,
             password = pwd_context.hash(data.password),
             nombre   = data.nombre,
+            role     = data.role if data.role in ["guardia", "ingeniero", "super_admin"] else "ingeniero",
             activo   = True
         )
         db.add(nuevo)
@@ -583,7 +601,24 @@ def listar_usuarios(usuario=Depends(get_usuario_actual)):
     db = Session()
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
-        return {"usuarios": [{"username": u.username, "nombre": u.nombre} for u in usuarios]}
+        return {"usuarios": [{"username": u.username, "nombre": u.nombre, "role": u.role or "ingeniero"} for u in usuarios]}
+    finally:
+        db.close()
+
+
+@app.patch("/api/usuarios/{username}/role")
+def cambiar_rol_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    if data.role not in ["guardia", "ingeniero", "super_admin"]:
+        raise HTTPException(status_code=400, detail="Rol inválido")
+    db = Session()
+    try:
+        u = db.query(Usuario).filter_by(username=username, activo=True).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        u.role = data.role
+        db.commit()
+        return {"ok": True}
     finally:
         db.close()
 
@@ -668,6 +703,25 @@ def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo eliminar asset: {e}")
+
+
+@app.patch("/api/assets/{asset_id}/asignacion")
+def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    payload = {
+        "asignado": (data.asignado or "").strip(),
+        "departamento": (data.departamento or "").strip(),
+        "puesto": (data.puesto or "").strip(),
+        "actualizadoEn": datetime.utcnow().isoformat(),
+    }
+    try:
+        firebase_client.collection("equipos").document(asset_id).set(payload, merge=True)
+        return {"ok": True, "id": asset_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo actualizar asignación: {e}")
 
 
 @app.post("/api/usuarios/cambiar-password")
@@ -1116,6 +1170,32 @@ def debug_ultimos_pings(limite: int = 20, usuario=Depends(get_usuario_actual)):
 @app.get("/dashboard")
 def dashboard():
     return FileResponse("dashboard.html")
+
+
+@app.get("/equipos")
+def equipos_page():
+    return FileResponse("equipos.html")
+
+
+@app.get("/usuarios")
+def usuarios_page():
+    return FileResponse("usuarios.html")
+
+
+@app.get("/login")
+def login_page():
+    return FileResponse("login.html")
+
+
+@app.get("/guardia")
+def guardia_page():
+    return FileResponse("guardia.html")
+
+
+@app.get("/reset-password")
+def reset_password_page():
+    return FileResponse("reset-password.html")
+
 
 @app.get("/")
 def root():
