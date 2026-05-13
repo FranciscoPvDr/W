@@ -1381,6 +1381,40 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
             if clave not in resultado_por_clave:
                 resultado_por_clave[clave] = item
 
+        try:
+            assets_supabase = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+            for asset in assets_supabase:
+                serie = _safe_firestore_text(asset.get("serie"))
+                clave = _normalizar_serie(serie) or _safe_firestore_text(asset.get("id"))
+                if not clave or clave in resultado_por_clave:
+                    continue
+                resultado_por_clave[clave] = {
+                    "device_id": _safe_firestore_text(asset.get("device_id") or asset.get("id")),
+                    "serial_number": serie,
+                    "numInventario": _safe_firestore_text(asset.get("num_inventario")),
+                    "asignado": _safe_firestore_text(asset.get("asignado")),
+                    "departamento": _safe_firestore_text(asset.get("departamento")),
+                    "puesto": _safe_firestore_text(asset.get("puesto")),
+                    "inventariado": True,
+                    "hostname": _safe_firestore_text(asset.get("hostname")),
+                    "ip": _safe_firestore_text(asset.get("ip")),
+                    "ssid": _safe_firestore_text(asset.get("ssid")),
+                    "dentro": bool(asset.get("dentro", True)),
+                    "online": False,
+                    "sistema": _safe_firestore_text(asset.get("sistema")),
+                    "ultimo_ping": asset.get("ultimo_ping") or asset.get("actualizado_en"),
+                    "lat": asset.get("lat"),
+                    "lng": asset.get("lng"),
+                    "accuracy": asset.get("accuracy"),
+                    "usb_storage_blocked": asset.get("usb_storage_blocked"),
+                    "usb_storage_policy": asset.get("usb_storage_policy"),
+                    "usb_storage_devices": asset.get("usb_storage_devices"),
+                    "usb_block_error": asset.get("usb_block_error"),
+                    "usb_updated_at": asset.get("usb_updated_at"),
+                }
+        except Exception as e:
+            print(f"No se pudieron cargar assets desde Supabase para dashboard: {e}")
+
         firebase_client = _get_firebase_db()
         if firebase_client:
             try:
