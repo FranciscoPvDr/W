@@ -8,6 +8,19 @@
     :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#f0f6fc;--muted:#8b949e;--blue:#58a6ff;--green:#238636;--red:#da3633}
     *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nav a,.nav button,.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1400px;margin:auto}.grid{display:grid;grid-template-columns:360px 1fr;gap:18px}.stack{display:grid;gap:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}label{display:block;margin:10px 0 5px;color:var(--muted);font-size:.75rem;font-weight:700;text-transform:uppercase}input,select{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1117;color:var(--text)}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;font-size:.88rem;vertical-align:top}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}.muted{color:var(--muted);font-size:.78rem}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tab{border:1px solid var(--border);background:#0d1117;color:var(--text);padding:8px 10px;border-radius:999px;cursor:pointer}.tab.active{border-color:var(--blue);color:#79c0ff}.primary{background:var(--green)!important;color:white!important}.danger{background:var(--red)!important;color:white!important}.inline{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px}.toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#1f6feb33;color:#79c0ff;font-size:.75rem}@media(max-width:980px){.grid{grid-template-columns:1fr}table{min-width:980px}.tablewrap{overflow:auto}.inline{grid-template-columns:1fr}}
   </style>
+  <style>
+    .tablewrap { max-width: 100%; overflow-x: auto; }
+    table { table-layout: fixed; min-width: 1180px; }
+    th, td { overflow-wrap: anywhere; word-break: break-word; line-height: 1.35; }
+    td:nth-child(1) { width: 240px; }
+    td:nth-child(2) { width: 110px; }
+    td:nth-child(3) { width: 220px; }
+    td:nth-child(4) { width: 420px; }
+    td:nth-child(5) { width: 190px; }
+    .inline { grid-template-columns: minmax(180px,1.4fr) minmax(120px,1fr) minmax(120px,1fr); }
+    .pill { white-space: normal; }
+    .btn { white-space: nowrap; margin: 2px 0; }
+  </style>
 </head>
 <body>
 <header><div class="brand">Inventario Firebase</div><nav class="nav"><a href="/dashboard">Dashboard sensores</a><a class="active" href="/equipos">Equipos</a><a href="/empleados">Empleados</a><a href="/usuarios">Usuarios</a><button onclick="logout()">Salir</button></nav></header>
