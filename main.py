@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Integer, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
+import time
 from typing import Optional, List
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -50,6 +51,29 @@ MAX_GEO_ACCURACY_M = float(os.getenv("MAX_GEO_ACCURACY_M", "250") or 250)
 OFFLINE_ALERT_MINUTES = int(os.getenv("OFFLINE_ALERT_MINUTES", "10") or 10)
 
 app = FastAPI(title="Monitor de Equipos")
+
+
+FIRESTORE_CACHE_TTL_SECONDS = 120
+_firestore_cache = {}
+
+
+def _cache_get(key: str):
+    item = _firestore_cache.get(key)
+    if not item:
+        return None
+    if time.time() - item["time"] > FIRESTORE_CACHE_TTL_SECONDS:
+        _firestore_cache.pop(key, None)
+        return None
+    return item["value"]
+
+
+def _cache_set(key: str, value):
+    _firestore_cache[key] = {"time": time.time(), "value": value}
+
+
+def _cache_clear(*keys: str):
+    for key in keys:
+        _firestore_cache.pop(key, None)
 
 app.add_middleware(
     CORSMiddleware,
@@ -708,6 +732,9 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
 
 @app.get("/api/assets")
 def listar_assets(usuario=Depends(get_usuario_actual)):
+    cached = _cache_get("assets")
+    if cached is not None:
+        return cached
     firebase_client = _get_firebase_db()
     if not firebase_client:
         raise HTTPException(status_code=400, detail="Firebase no configurado")
@@ -734,7 +761,9 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
                 })
             except Exception as e:
                 omitidos.append({"id": _safe_firestore_text(getattr(doc, "id", "")), "error": str(e)})
-        return {"assets": assets, "omitidos": omitidos}
+        resultado = {"assets": assets, "omitidos": omitidos}
+        _cache_set("assets", resultado)
+        return resultado
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudieron cargar assets: {e}")
 
@@ -763,6 +792,7 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
     doc_id = payload["serie"] or payload["numInventario"] or str(uuid.uuid4())
     try:
         firebase_client.collection("equipos").document(doc_id).set(payload, merge=True)
+        _cache_clear("assets")
         return {"ok": True, "id": doc_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar asset: {e}")
@@ -792,6 +822,7 @@ def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_a
     }
     try:
         firebase_client.collection("equipos").document(asset_id).set(payload, merge=True)
+        _cache_clear("assets")
         return {"ok": True, "id": asset_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo editar asset: {e}")
@@ -804,6 +835,7 @@ def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
         raise HTTPException(status_code=400, detail="Firebase no configurado")
     try:
         firebase_client.collection("equipos").document(asset_id).delete()
+        _cache_clear("assets")
         return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo eliminar asset: {e}")
@@ -811,6 +843,9 @@ def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
 
 @app.get("/api/empleados")
 def listar_empleados(usuario=Depends(get_usuario_actual)):
+    cached = _cache_get("empleados")
+    if cached is not None:
+        return cached
     firebase_client = _get_firebase_db()
     if not firebase_client:
         raise HTTPException(status_code=400, detail="Firebase no configurado")
@@ -833,7 +868,9 @@ def listar_empleados(usuario=Depends(get_usuario_actual)):
                 "activo": data.get("activo", True),
             })
         empleados.sort(key=lambda x: x.get("nombreCompleto", ""))
-        return {"empleados": empleados}
+        resultado = {"empleados": empleados}
+        _cache_set("empleados", resultado)
+        return resultado
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudieron cargar empleados: {e}")
 
@@ -848,6 +885,7 @@ def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
     doc_id = payload["numEmpleado"] or str(uuid.uuid4())
     try:
         firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
+        _cache_clear("empleados")
         return {"ok": True, "id": doc_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar empleado: {e}")
@@ -862,6 +900,7 @@ def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_
     payload = _payload_empleado(data)
     try:
         firebase_client.collection("empleados").document(empleado_id).set(payload, merge=True)
+        _cache_clear("empleados")
         return {"ok": True, "id": empleado_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo editar empleado: {e}")
@@ -883,6 +922,7 @@ def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actu
                 continue
             doc_id = payload["numEmpleado"] or str(uuid.uuid4())
             firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
+            _cache_clear("empleados")
             guardados += 1
         except Exception as e:
             errores.append({"fila": idx, "error": str(e)})
