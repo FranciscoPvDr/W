@@ -315,6 +315,10 @@ class EmpleadoCreate(BaseModel):
     activo: Optional[bool] = True
 
 
+class EmpleadosBulk(BaseModel):
+    empleados: List[EmpleadoCreate]
+
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
@@ -515,6 +519,25 @@ def _nombre_completo_empleado(data: dict) -> str:
         data.get("apellidoMaterno", ""),
     ]
     return " ".join(str(p).strip() for p in partes if str(p).strip())
+
+
+def _payload_empleado(data: EmpleadoCreate) -> dict:
+    nombre_completo = " ".join(
+        p.strip() for p in [data.nombre, data.apellidoPaterno or "", data.apellidoMaterno or ""] if p.strip()
+    )
+    return {
+        "activo": bool(data.activo),
+        "apellidoMaterno": (data.apellidoMaterno or "").strip(),
+        "apellidoPaterno": (data.apellidoPaterno or "").strip(),
+        "correo": (data.correo or "").strip(),
+        "departamento": (data.departamento or "").strip(),
+        "fechaIngreso": (data.fechaIngreso or "").strip(),
+        "nombre": data.nombre.strip(),
+        "nombreCompleto": nombre_completo,
+        "numEmpleado": (data.numEmpleado or "").strip(),
+        "puesto": (data.puesto or "").strip(),
+        "telefono": (data.telefono or "").strip(),
+    }
 
 
 # ── Helpers JWT ────────────────────────────────────────────────────────────
@@ -765,28 +788,49 @@ def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
     firebase_client = _get_firebase_db()
     if not firebase_client:
         raise HTTPException(status_code=400, detail="Firebase no configurado")
-    nombre_completo = " ".join(
-        p.strip() for p in [data.nombre, data.apellidoPaterno or "", data.apellidoMaterno or ""] if p.strip()
-    )
-    payload = {
-        "activo": bool(data.activo),
-        "apellidoMaterno": (data.apellidoMaterno or "").strip(),
-        "apellidoPaterno": (data.apellidoPaterno or "").strip(),
-        "correo": (data.correo or "").strip(),
-        "departamento": (data.departamento or "").strip(),
-        "fechaIngreso": (data.fechaIngreso or "").strip(),
-        "nombre": data.nombre.strip(),
-        "nombreCompleto": nombre_completo,
-        "numEmpleado": (data.numEmpleado or "").strip(),
-        "puesto": (data.puesto or "").strip(),
-        "telefono": (data.telefono or "").strip(),
-    }
+    payload = _payload_empleado(data)
     doc_id = payload["numEmpleado"] or str(uuid.uuid4())
     try:
         firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
         return {"ok": True, "id": doc_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar empleado: {e}")
+
+
+@app.patch("/api/empleados/{empleado_id}")
+def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    payload = _payload_empleado(data)
+    try:
+        firebase_client.collection("empleados").document(empleado_id).set(payload, merge=True)
+        return {"ok": True, "id": empleado_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo editar empleado: {e}")
+
+
+@app.post("/api/empleados/bulk")
+def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    guardados = 0
+    errores = []
+    for idx, empleado in enumerate(data.empleados, start=1):
+        try:
+            payload = _payload_empleado(empleado)
+            if not payload["nombre"]:
+                errores.append({"fila": idx, "error": "Nombre requerido"})
+                continue
+            doc_id = payload["numEmpleado"] or str(uuid.uuid4())
+            firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
+            guardados += 1
+        except Exception as e:
+            errores.append({"fila": idx, "error": str(e)})
+    return {"ok": len(errores) == 0, "guardados": guardados, "errores": errores}
 
 
 @app.patch("/api/assets/{asset_id}/asignacion")

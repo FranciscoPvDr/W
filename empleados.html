@@ -1,46 +1,58 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Empleados</title>
   <style>
-    :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#f0f6fc;--muted:#8b949e;--blue:#58a6ff;--green:#238636}
-    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nav a,.nav button,.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1300px;margin:auto}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}input{padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1117;color:var(--text);min-width:280px}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid var(--border);text-align:left;font-size:.9rem;vertical-align:top}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}.muted{color:var(--muted);font-size:.78rem}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#1f6feb33;color:#79c0ff;font-size:.78rem}.ok{background:#23863633;color:#7ee787}.tablewrap{overflow:auto}@media(max-width:800px){table{min-width:900px}}
+    :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#f0f6fc;--muted:#8b949e;--blue:#58a6ff;--green:#238636;--red:#da3633}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nav a,.nav button,.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1450px;margin:auto}.grid{display:grid;grid-template-columns:380px 1fr;gap:18px}.stack{display:grid;gap:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}label{display:block;margin:10px 0 5px;color:var(--muted);font-size:.75rem;font-weight:700;text-transform:uppercase}input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1117;color:var(--text)}textarea{min-height:170px;font-family:Consolas,monospace}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;font-size:.86rem;vertical-align:top}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}.muted{color:var(--muted);font-size:.78rem}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#1f6feb33;color:#79c0ff;font-size:.78rem}.ok{background:#23863633;color:#7ee787}.primary{background:var(--green)!important;color:white!important}.danger{background:var(--red)!important;color:white!important}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tablewrap{overflow:auto}.actions{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:1000px){.grid{grid-template-columns:1fr}table{min-width:1050px}.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-<header>
-  <div class="brand">Empleados</div>
-  <nav class="nav">
-    <a href="/dashboard">Dashboard</a>
-    <a href="/equipos">Equipos</a>
-    <a class="active" href="/empleados">Empleados</a>
-    <a href="/usuarios">Usuarios</a>
-    <button onclick="logout()">Salir</button>
-  </nav>
-</header>
+<header><div class="brand">Empleados</div><nav class="nav"><a href="/dashboard">Dashboard</a><a href="/equipos">Equipos</a><a class="active" href="/empleados">Empleados</a><a href="/usuarios">Usuarios</a><button onclick="logout()">Salir</button></nav></header>
 <main>
-  <section class="card">
-    <div class="toolbar">
-      <div>
-        <h2>Catálogo de empleados Firestore</h2>
-        <div class="muted" id="summary">Cargando...</div>
-      </div>
-      <input id="q" placeholder="Buscar por nombre, número, departamento..." oninput="render()" />
+  <div class="grid">
+    <div class="stack">
+      <section class="card">
+        <h2 id="formTitle">Agregar empleado</h2>
+        <input id="editId" type="hidden" />
+        <div class="row"><div><label>No. empleado</label><input id="numEmpleado" placeholder="A-00011" /></div><div><label>Fecha ingreso</label><input id="fechaIngreso" placeholder="06/01/2025" /></div></div>
+        <label>Nombre</label><input id="nombre" />
+        <div class="row"><div><label>Apellido paterno</label><input id="apellidoPaterno" /></div><div><label>Apellido materno</label><input id="apellidoMaterno" /></div></div>
+        <div class="row"><div><label>Departamento</label><input id="departamento" /></div><div><label>Puesto</label><input id="puesto" /></div></div>
+        <div class="row"><div><label>Correo</label><input id="correo" /></div><div><label>Teléfono</label><input id="telefono" /></div></div>
+        <label>Estado</label><select id="activo"><option value="true">Activo</option><option value="false">Inactivo</option></select>
+        <div class="actions"><button class="btn primary" onclick="guardarEmpleado()">Guardar</button><button class="btn" onclick="limpiarForm()">Nuevo</button></div><div class="muted" id="msg"></div>
+      </section>
+      <section class="card">
+        <h2>Carga / edición masiva CSV</h2>
+        <div class="muted">Encabezados: numEmpleado,nombre,apellidoPaterno,apellidoMaterno,correo,departamento,puesto,telefono,fechaIngreso,activo</div>
+        <label>Archivo CSV</label><input type="file" id="csvFile" accept=".csv,text/csv" onchange="leerArchivoCSV()" />
+        <label>Pegar CSV</label><textarea id="csvText" placeholder="numEmpleado,nombre,apellidoPaterno,apellidoMaterno,correo,departamento,puesto,telefono,fechaIngreso,activo"></textarea>
+        <div class="actions"><button class="btn" onclick="exportarCSV()">Exportar actuales</button><button class="btn primary" onclick="guardarCSV()">Guardar CSV en Firebase</button></div><div class="muted" id="bulkMsg"></div>
+      </section>
     </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>Empleado</th><th>No.</th><th>Departamento</th><th>Puesto</th><th>Contacto</th><th>Ingreso</th><th>Estado</th></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-  </section>
+    <section class="card">
+      <div class="toolbar"><div><h2>Catálogo de empleados Firestore</h2><div class="muted" id="summary">Cargando...</div></div><input id="q" placeholder="Buscar por nombre, número, departamento..." oninput="render()" /></div>
+      <div class="tablewrap"><table><thead><tr><th>Empleado</th><th>No.</th><th>Departamento</th><th>Puesto</th><th>Contacto</th><th>Ingreso</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    </section>
+  </div>
 </main>
 <script>
-const SERVER=location.origin;const TOKEN=localStorage.getItem('monitor_token');let empleados=[];if(!TOKEN)location.href='/login';function headers(){return{Authorization:`Bearer ${TOKEN}`}}function logout(){localStorage.clear();location.href='/login'}function esc(v){return String(v||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
-async function cargar(){const res=await fetch(`${SERVER}/api/empleados`,{headers:headers()});if(res.status===401){logout();return}if(!res.ok){tbody.innerHTML='<tr><td colspan="7">No se pudieron cargar empleados</td></tr>';summary.textContent='Error al cargar Firestore';return}const data=await res.json();empleados=data.empleados||[];render()}
-function render(){const term=(q.value||'').toLowerCase();const rows=empleados.filter(e=>JSON.stringify(e).toLowerCase().includes(term));summary.textContent=`${rows.length} de ${empleados.length} empleados`;tbody.innerHTML=rows.map(e=>`<tr><td><strong>${esc(e.nombreCompleto||e.nombre)}</strong><div class="muted">${esc(e.apellidoPaterno)} ${esc(e.apellidoMaterno)}</div></td><td>${esc(e.numEmpleado)}</td><td><span class="badge">${esc(e.departamento||'Sin departamento')}</span></td><td>${esc(e.puesto)}</td><td>${esc(e.correo)}<div class="muted">${esc(e.telefono)}</div></td><td>${esc(e.fechaIngreso)}</td><td><span class="badge ${e.activo!==false?'ok':''}">${e.activo!==false?'Activo':'Inactivo'}</span></td></tr>`).join('')||'<tr><td colspan="7">Sin empleados</td></tr>'}
+const SERVER=location.origin;const TOKEN=localStorage.getItem('monitor_token');const ROLE=localStorage.getItem('monitor_role')||'ingeniero';let empleados=[];if(!TOKEN)location.href='/login';function headers(){return{Authorization:`Bearer ${TOKEN}`}}function jsonHeaders(){return{...headers(),'Content-Type':'application/json'}}function logout(){localStorage.clear();location.href='/login'}function esc(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function payload(){return{numEmpleado:numEmpleado.value.trim(),nombre:nombre.value.trim(),apellidoPaterno:apellidoPaterno.value.trim(),apellidoMaterno:apellidoMaterno.value.trim(),correo:correo.value.trim(),departamento:departamento.value.trim(),puesto:puesto.value.trim(),telefono:telefono.value.trim(),fechaIngreso:fechaIngreso.value.trim(),activo:activo.value==='true'}}
+async function cargar(){const res=await fetch(`${SERVER}/api/empleados`,{headers:headers()});if(res.status===401){logout();return}if(!res.ok){tbody.innerHTML='<tr><td colspan="8">No se pudieron cargar empleados</td></tr>';summary.textContent='Error al cargar Firestore';return}const data=await res.json();empleados=data.empleados||[];render()}
+function render(){const term=(q.value||'').toLowerCase();const rows=empleados.filter(e=>JSON.stringify(e).toLowerCase().includes(term));summary.textContent=`${rows.length} de ${empleados.length} empleados`;tbody.innerHTML=rows.map(e=>`<tr><td><strong>${esc(e.nombreCompleto||e.nombre)}</strong><div class="muted">${esc(e.apellidoPaterno)} ${esc(e.apellidoMaterno)}</div></td><td>${esc(e.numEmpleado)}</td><td><span class="badge">${esc(e.departamento||'Sin departamento')}</span></td><td>${esc(e.puesto)}</td><td>${esc(e.correo)}<div class="muted">${esc(e.telefono)}</div></td><td>${esc(e.fechaIngreso)}</td><td><span class="badge ${e.activo!==false?'ok':''}">${e.activo!==false?'Activo':'Inactivo'}</span></td><td><button class="btn" onclick="editar('${esc(e.id)}')">Editar</button></td></tr>`).join('')||'<tr><td colspan="8">Sin empleados</td></tr>'}
+function limpiarForm(){formTitle.textContent='Agregar empleado';editId.value='';['numEmpleado','nombre','apellidoPaterno','apellidoMaterno','correo','departamento','puesto','telefono','fechaIngreso'].forEach(id=>window[id].value='');activo.value='true';msg.textContent=''}
+function editar(id){const e=empleados.find(x=>x.id===id);if(!e)return;formTitle.textContent='Editar empleado';editId.value=e.id;numEmpleado.value=e.numEmpleado||'';nombre.value=e.nombre||'';apellidoPaterno.value=e.apellidoPaterno||'';apellidoMaterno.value=e.apellidoMaterno||'';correo.value=e.correo||'';departamento.value=e.departamento||'';puesto.value=e.puesto||'';telefono.value=e.telefono||'';fechaIngreso.value=e.fechaIngreso||'';activo.value=e.activo!==false?'true':'false';window.scrollTo({top:0,behavior:'smooth'})}
+async function guardarEmpleado(){const data=payload();if(!data.nombre){alert('Nombre requerido');return}const id=editId.value;const url=id?`${SERVER}/api/empleados/${encodeURIComponent(id)}`:`${SERVER}/api/empleados`;const method=id?'PATCH':'POST';const res=await fetch(url,{method,headers:jsonHeaders(),body:JSON.stringify(data)});const json=await res.json().catch(()=>({}));msg.textContent=res.ok?'Guardado en Firebase':(json.detail||'No se pudo guardar');if(res.ok){limpiarForm();cargar()}}
+function parseCSVLine(line){const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'&&line[i+1]==='"'){cur+='"';i++;continue}if(ch==='"'){q=!q;continue}if(ch===','&&!q){out.push(cur);cur='';continue}cur+=ch}out.push(cur);return out.map(v=>v.trim())}
+function parseCSV(text){const lines=text.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2)return[];const headers=parseCSVLine(lines[0]).map(h=>h.trim());return lines.slice(1).map(line=>{const cols=parseCSVLine(line);const obj={};headers.forEach((h,i)=>obj[h]=cols[i]||'');return{numEmpleado:obj.numEmpleado||'',nombre:obj.nombre||'',apellidoPaterno:obj.apellidoPaterno||'',apellidoMaterno:obj.apellidoMaterno||'',correo:obj.correo||'',departamento:obj.departamento||'',puesto:obj.puesto||'',telefono:obj.telefono||'',fechaIngreso:obj.fechaIngreso||'',activo:String(obj.activo||'true').toLowerCase()!=='false'}}).filter(e=>e.nombre)}
+function csvEscape(v){v=String(v||'');return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}
+function exportarCSV(){const headers=['numEmpleado','nombre','apellidoPaterno','apellidoMaterno','correo','departamento','puesto','telefono','fechaIngreso','activo'];const rows=empleados.map(e=>headers.map(h=>csvEscape(e[h])).join(','));csvText.value=[headers.join(','),...rows].join('\n')}
+function leerArchivoCSV(){const file=csvFile.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>csvText.value=reader.result;reader.readAsText(file,'UTF-8')}
+async function guardarCSV(){const lista=parseCSV(csvText.value);if(!lista.length){alert('CSV vacío o sin columna nombre');return}if(!confirm(`¿Guardar ${lista.length} empleados en Firebase? Si numEmpleado coincide se actualizará.`))return;const res=await fetch(`${SERVER}/api/empleados/bulk`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify({empleados:lista})});const data=await res.json().catch(()=>({}));bulkMsg.textContent=res.ok?`Guardados: ${data.guardados}`:`Guardados: ${data.guardados||0}. Errores: ${(data.errores||[]).length}`;cargar()}
 cargar();
 </script>
 </body>
