@@ -50,6 +50,9 @@ OFFICE_LNG = float(os.getenv("OFFICE_LNG", "0") or 0)
 MAX_GEO_ACCURACY_M = float(os.getenv("MAX_GEO_ACCURACY_M", "250") or 250)
 OFFLINE_ALERT_MINUTES = int(os.getenv("OFFLINE_ALERT_MINUTES", "10") or 10)
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+
 app = FastAPI(title="Monitor de Equipos")
 
 
@@ -735,110 +738,37 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
     cached = _cache_get("assets")
     if cached is not None:
         return cached
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    try:
-        docs = firebase_client.collection("equipos").stream()
-        assets = []
-        omitidos = []
-        for doc in docs:
-            try:
-                data = doc.to_dict() or {}
-                assets.append({
-                    "id": _safe_firestore_text(doc.id),
-                    "numInventario": _safe_firestore_text(data.get("numInventario")),
-                    "serie": _safe_firestore_text(data.get("serie")),
-                    "tipo": _safe_firestore_text(data.get("tipo")),
-                    "marca": _safe_firestore_text(data.get("marca")),
-                    "modelo": _safe_firestore_text(data.get("modelo")),
-                    "subtipo": _safe_firestore_text(data.get("subtipo")),
-                    "notas": _safe_firestore_text(data.get("notas")),
-                    "fechaCompra": _safe_firestore_text(data.get("fechaCompra")),
-                    "asignado": _safe_firestore_text(data.get("asignado")),
-                    "departamento": _safe_firestore_text(data.get("departamento")),
-                    "puesto": _safe_firestore_text(data.get("puesto")),
-                })
-            except Exception as e:
-                omitidos.append({"id": _safe_firestore_text(getattr(doc, "id", "")), "error": str(e)})
-        resultado = {"assets": assets, "omitidos": omitidos}
-        _cache_set("assets", resultado)
-        return resultado
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudieron cargar assets: {e}")
+    rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+    resultado = {"assets": [_asset_row_to_api(row) for row in rows], "omitidos": []}
+    _cache_set("assets", resultado)
+    return resultado
 
 
 @app.post("/api/assets")
 def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    payload = {
-        "numInventario": (data.numInventario or "").strip(),
-        "serie": (data.serie or "").strip(),
-        "tipo": (data.tipo or "Laptop").strip(),
-        "marca": (data.marca or "").strip(),
-        "modelo": (data.modelo or "").strip(),
-        "asignado": (data.asignado or "").strip(),
-        "departamento": (data.departamento or "").strip(),
-        "puesto": (data.puesto or "").strip(),
-        "subtipo": (data.subtipo or "").strip(),
-        "notas": (data.notas or "").strip(),
-        "fechaCompra": (data.fechaCompra or "").strip(),
-        "inventariado": True,
-        "actualizadoEn": datetime.utcnow().isoformat(),
-    }
-    doc_id = payload["serie"] or payload["numInventario"] or str(uuid.uuid4())
-    try:
-        firebase_client.collection("equipos").document(doc_id).set(payload, merge=True)
-        _cache_clear("assets")
-        return {"ok": True, "id": doc_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar asset: {e}")
-
+    payload = _asset_payload_supabase(data)
+    rows = _supabase_request("POST", "equipos", params={"on_conflict": "id"}, json=payload, prefer="resolution=merge-duplicates,return=representation") or []
+    _cache_clear("assets")
+    return {"ok": True, "id": (rows[0].get("id") if rows else payload["id"])}
 
 
 @app.patch("/api/assets/{asset_id}")
 def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    payload = {
-        "numInventario": (data.numInventario or "").strip(),
-        "serie": (data.serie or "").strip(),
-        "tipo": (data.tipo or "").strip(),
-        "subtipo": (data.subtipo or "").strip(),
-        "marca": (data.marca or "").strip(),
-        "modelo": (data.modelo or "").strip(),
-        "asignado": (data.asignado or "").strip(),
-        "departamento": (data.departamento or "").strip(),
-        "puesto": (data.puesto or "").strip(),
-        "notas": (data.notas or "").strip(),
-        "fechaCompra": (data.fechaCompra or "").strip(),
-        "inventariado": True,
-        "actualizadoEn": datetime.utcnow().isoformat(),
-    }
-    try:
-        firebase_client.collection("equipos").document(asset_id).set(payload, merge=True)
-        _cache_clear("assets")
-        return {"ok": True, "id": asset_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo editar asset: {e}")
+    payload = _asset_payload_supabase(data)
+    payload.pop("id", None)
+    _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
+    _cache_clear("assets")
+    return {"ok": True, "id": asset_id}
+
 
 @app.delete("/api/assets/{asset_id}")
 def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    try:
-        firebase_client.collection("equipos").document(asset_id).delete()
-        _cache_clear("assets")
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo eliminar asset: {e}")
+    _supabase_request("DELETE", "equipos", params={"id": f"eq.{asset_id}"}, prefer="return=minimal")
+    _cache_clear("assets")
+    return {"ok": True}
 
 
 @app.get("/api/empleados")
@@ -846,106 +776,66 @@ def listar_empleados(usuario=Depends(get_usuario_actual)):
     cached = _cache_get("empleados")
     if cached is not None:
         return cached
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    try:
-        empleados = []
-        for doc in firebase_client.collection("empleados").stream():
-            data = doc.to_dict() or {}
-            empleados.append({
-                "id": doc.id,
-                "numEmpleado": _safe_firestore_text(data.get("numEmpleado")),
-                "nombre": _safe_firestore_text(data.get("nombre")),
-                "apellidoPaterno": _safe_firestore_text(data.get("apellidoPaterno")),
-                "apellidoMaterno": _safe_firestore_text(data.get("apellidoMaterno")),
-                "nombreCompleto": _nombre_completo_empleado(data),
-                "correo": _safe_firestore_text(data.get("correo")),
-                "departamento": _safe_firestore_text(data.get("departamento")),
-                "puesto": _safe_firestore_text(data.get("puesto")),
-                "telefono": _safe_firestore_text(data.get("telefono")),
-                "fechaIngreso": _safe_firestore_text(data.get("fechaIngreso")),
-                "activo": data.get("activo", True),
-            })
-        empleados.sort(key=lambda x: x.get("nombreCompleto", ""))
-        resultado = {"empleados": empleados}
-        _cache_set("empleados", resultado)
-        return resultado
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudieron cargar empleados: {e}")
+    rows = _supabase_request("GET", "empleados", params={"select": "*"}) or []
+    resultado = {"empleados": [_empleado_row_to_api(row) for row in rows]}
+    _cache_set("empleados", resultado)
+    return resultado
 
 
 @app.post("/api/empleados")
 def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    payload = _payload_empleado(data)
-    doc_id = payload["numEmpleado"] or str(uuid.uuid4())
-    try:
-        firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
-        _cache_clear("empleados")
-        return {"ok": True, "id": doc_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar empleado: {e}")
+    payload = _empleado_payload_supabase(data)
+    rows = _supabase_request("POST", "empleados", params={"on_conflict": "num_empleado"}, json=payload, prefer="resolution=merge-duplicates,return=representation") or []
+    _cache_clear("empleados")
+    return {"ok": True, "id": (rows[0].get("num_empleado") if rows else payload["num_empleado"])}
 
 
 @app.patch("/api/empleados/{empleado_id}")
 def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    payload = _payload_empleado(data)
-    try:
-        firebase_client.collection("empleados").document(empleado_id).set(payload, merge=True)
-        _cache_clear("empleados")
-        return {"ok": True, "id": empleado_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo editar empleado: {e}")
+    payload = _empleado_payload_supabase(data)
+    payload.pop("num_empleado", None)
+    _supabase_request("PATCH", "empleados", params={"num_empleado": f"eq.{empleado_id}"}, json=payload)
+    _cache_clear("empleados")
+    return {"ok": True, "id": empleado_id}
 
 
 @app.post("/api/empleados/bulk")
 def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    guardados = 0
+    filas = []
     errores = []
     for idx, empleado in enumerate(data.empleados, start=1):
         try:
-            payload = _payload_empleado(empleado)
+            payload = _empleado_payload_supabase(empleado)
             if not payload["nombre"]:
                 errores.append({"fila": idx, "error": "Nombre requerido"})
                 continue
-            doc_id = payload["numEmpleado"] or str(uuid.uuid4())
-            firebase_client.collection("empleados").document(doc_id).set(payload, merge=True)
-            _cache_clear("empleados")
-            guardados += 1
+            filas.append(payload)
         except Exception as e:
             errores.append({"fila": idx, "error": str(e)})
-    return {"ok": len(errores) == 0, "guardados": guardados, "errores": errores}
+    if filas:
+        try:
+            _supabase_request("POST", "empleados", params={"on_conflict": "num_empleado"}, json=filas, prefer="resolution=merge-duplicates,return=representation")
+            _cache_clear("empleados")
+        except Exception as e:
+            errores.append({"fila": "bulk", "error": str(e)})
+    return {"ok": len(errores) == 0, "guardados": len(filas) if len(errores) == 0 else 0, "errores": errores}
 
 
 @app.patch("/api/assets/{asset_id}/asignacion")
 def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
     payload = {
-        "asignado": (data.asignado or "").strip(),
-        "departamento": (data.departamento or "").strip(),
-        "puesto": (data.puesto or "").strip(),
-        "actualizadoEn": datetime.utcnow().isoformat(),
+        "asignado": (data.asignado or "").strip() or None,
+        "departamento": (data.departamento or "").strip() or None,
+        "puesto": (data.puesto or "").strip() or None,
+        "actualizado_en": datetime.utcnow().isoformat(),
     }
-    try:
-        firebase_client.collection("equipos").document(asset_id).set(payload, merge=True)
-        return {"ok": True, "id": asset_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo actualizar asignación: {e}")
+    _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
+    _cache_clear("assets")
+    return {"ok": True, "id": asset_id}
 
 
 @app.post("/api/usuarios/cambiar-password")
