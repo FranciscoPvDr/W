@@ -1269,6 +1269,11 @@ def usuarios_page():
     return FileResponse("usuarios.html")
 
 
+@app.get("/empleados")
+def empleados_page():
+    return FileResponse("empleados.html")
+
+
 @app.get("/login")
 def login_page():
     return FileResponse("login.html")

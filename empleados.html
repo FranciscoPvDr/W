@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Empleados</title>
+  <style>
+    :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#f0f6fc;--muted:#8b949e;--blue:#58a6ff;--green:#238636}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}header{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);background:#010409}.brand{font-weight:800}.nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nav a,.nav button,.btn{border:1px solid var(--border);background:var(--card);color:var(--text);padding:9px 12px;border-radius:10px;text-decoration:none;cursor:pointer}.nav a.active{border-color:var(--blue)}main{padding:24px;max-width:1300px;margin:auto}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}.toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}input{padding:10px;border-radius:10px;border:1px solid var(--border);background:#0d1117;color:var(--text);min-width:280px}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid var(--border);text-align:left;font-size:.9rem;vertical-align:top}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}.muted{color:var(--muted);font-size:.78rem}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#1f6feb33;color:#79c0ff;font-size:.78rem}.ok{background:#23863633;color:#7ee787}.tablewrap{overflow:auto}@media(max-width:800px){table{min-width:900px}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="brand">Empleados</div>
+  <nav class="nav">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/equipos">Equipos</a>
+    <a class="active" href="/empleados">Empleados</a>
+    <a href="/usuarios">Usuarios</a>
+    <button onclick="logout()">Salir</button>
+  </nav>
+</header>
+<main>
+  <section class="card">
+    <div class="toolbar">
+      <div>
+        <h2>Catálogo de empleados Firestore</h2>
+        <div class="muted" id="summary">Cargando...</div>
+      </div>
+      <input id="q" placeholder="Buscar por nombre, número, departamento..." oninput="render()" />
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Empleado</th><th>No.</th><th>Departamento</th><th>Puesto</th><th>Contacto</th><th>Ingreso</th><th>Estado</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script>
+const SERVER=location.origin;const TOKEN=localStorage.getItem('monitor_token');let empleados=[];if(!TOKEN)location.href='/login';function headers(){return{Authorization:`Bearer ${TOKEN}`}}function logout(){localStorage.clear();location.href='/login'}function esc(v){return String(v||'').replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
+async function cargar(){const res=await fetch(`${SERVER}/api/empleados`,{headers:headers()});if(res.status===401){logout();return}if(!res.ok){tbody.innerHTML='<tr><td colspan="7">No se pudieron cargar empleados</td></tr>';summary.textContent='Error al cargar Firestore';return}const data=await res.json();empleados=data.empleados||[];render()}
+function render(){const term=(q.value||'').toLowerCase();const rows=empleados.filter(e=>JSON.stringify(e).toLowerCase().includes(term));summary.textContent=`${rows.length} de ${empleados.length} empleados`;tbody.innerHTML=rows.map(e=>`<tr><td><strong>${esc(e.nombreCompleto||e.nombre)}</strong><div class="muted">${esc(e.apellidoPaterno)} ${esc(e.apellidoMaterno)}</div></td><td>${esc(e.numEmpleado)}</td><td><span class="badge">${esc(e.departamento||'Sin departamento')}</span></td><td>${esc(e.puesto)}</td><td>${esc(e.correo)}<div class="muted">${esc(e.telefono)}</div></td><td>${esc(e.fechaIngreso)}</td><td><span class="badge ${e.activo!==false?'ok':''}">${e.activo!==false?'Activo':'Inactivo'}</span></td></tr>`).join('')||'<tr><td colspan="7">Sin empleados</td></tr>'}
+cargar();
+</script>
+</body>
+</html>
