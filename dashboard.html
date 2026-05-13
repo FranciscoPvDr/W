@@ -647,9 +647,6 @@
         <div class="user-avatar" id="user-avatar">A</div>
         <span id="user-display"></span>
       </div>
-      <button class="logout-btn" onclick="window.location.href='/equipos'">Equipos</button>
-      <button class="logout-btn" onclick="window.location.href='/guardia'">Guardia</button>
-      <button class="logout-btn" id="roles-btn" onclick="window.location.href='/usuarios'" style="display:none">Usuarios</button>
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -705,11 +702,11 @@
             <tr>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
               <th>IP</th><th>Red / SSID</th><th>Estado</th>
-              <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
+              <th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
-            <tr><td colspan="11"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
+            <tr><td colspan="10"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -733,35 +730,11 @@
 
   const GOOGLE_API_KEY = 'AIzaSyCcGAhqaxgQRMxilFd5sYXIKvIzQq1DeKE';
 
-  let TOKEN = null, currentRole = 'ingeniero', currentFilter = 'todos', allEquipos = [];
+  let TOKEN = null, currentFilter = 'todos', allEquipos = [], CURRENT_USERNAME = '';
   let refreshInterval = null, map = null, markers = [];
   let currentTab = 'lista', offlineAlertMinutes = 10;
 
-  function startDashboardSession(token, role, nombre) {
-    TOKEN = token;
-    currentRole = role || 'ingeniero';
-    const displayName = nombre || localStorage.getItem('monitor_username') || 'Usuario';
-    document.getElementById('user-display').textContent = `${displayName} · ${roleLabel(currentRole)}`;
-    document.getElementById('user-avatar').textContent = displayName.charAt(0).toUpperCase();
-    document.getElementById('roles-btn').style.display = currentRole === 'super_admin' ? 'inline-block' : 'none';
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('dashboard-screen').style.display = 'block';
-    fetchData();
-    clearInterval(refreshInterval);
-    refreshInterval = setInterval(fetchData, 30000);
-  }
-
-  function initSession() {
-    const savedToken = localStorage.getItem('monitor_token');
-    if (!savedToken) {
-      window.location.href = '/login';
-      return;
-    }
-    startDashboardSession(savedToken, localStorage.getItem('monitor_role'), localStorage.getItem('monitor_nombre'));
-  }
-
-  const loginPass = document.getElementById('login-pass');
-  if (loginPass) loginPass.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
   async function doLogin() {
     const user = document.getElementById('login-user').value.trim();
@@ -779,12 +752,15 @@
       });
       if (!res.ok) { errEl.style.display = 'block'; return; }
       const data = await res.json();
+      TOKEN = data.access_token;
+      CURRENT_USERNAME = data.username || user;
       const nombre = data.nombre || user;
-      localStorage.setItem('monitor_token', data.access_token);
-      localStorage.setItem('monitor_role', data.role || 'ingeniero');
-      localStorage.setItem('monitor_nombre', nombre);
-      localStorage.setItem('monitor_username', user);
-      startDashboardSession(data.access_token, data.role, nombre);
+      document.getElementById('user-display').textContent = nombre;
+      document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard-screen').style.display = 'block';
+      fetchData();
+      refreshInterval = setInterval(fetchData, 30000);
     } catch {
       errEl.textContent = 'No se pudo conectar al servidor';
       errEl.style.display = 'block';
@@ -793,12 +769,11 @@
 
   function doLogout() {
     TOKEN = null;
-    localStorage.removeItem('monitor_token');
-    localStorage.removeItem('monitor_role');
-    localStorage.removeItem('monitor_nombre');
-    localStorage.removeItem('monitor_username');
+    CURRENT_USERNAME = '';
     clearInterval(refreshInterval);
-    window.location.href = '/login';
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('dashboard-screen').style.display = 'none';
+    document.getElementById('login-pass').value = '';
   }
 
   function authHeaders() { return { 'Authorization': `Bearer ${TOKEN}` }; }
@@ -833,27 +808,6 @@
 
   function abrirEnMaps(lat, lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
 
-  function roleLabel(role) {
-    if (role === 'guardia') return 'Guardia';
-    if (role === 'super_admin') return 'Super Admin';
-    return 'Ingeniero';
-  }
-
-  function usbLabel(e) {
-    const state = e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
-    const policy = e.usb_storage_policy === true ? '<div class="accuracy">politica: bloquear</div>' : e.usb_storage_policy === false ? '<div class="accuracy">politica: habilitar</div>' : '';
-    const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
-    const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
-    return `<span class="badge ${e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro'}">${state}${devices}</span>${policy}${error}`;
-  }
-
-  function usbActionButton(e) {
-    if (currentRole !== 'super_admin') return '';
-    const shouldBlock = e.usb_storage_policy !== true;
-    const label = shouldBlock ? 'Bloquear USB' : 'Habilitar USB';
-    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
-  }
-
   function renderTabla(equipos) {
     const tbody = document.getElementById('tabla-equipos');
     let filtered = equipos;
@@ -868,7 +822,7 @@
     if (currentFilter === 'fuera') filtered = equipos.filter(e => !e.dentro);
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
       return;
     }
 
@@ -888,14 +842,13 @@
             <span class="badge ${e.dentro ? 'badge-dentro' : 'badge-fuera'}">${e.dentro ? 'dentro' : 'fuera'}</span>
           </div>
         </td>
-        <td>${usbLabel(e)}</td>
         <td>${e.lat
           ? `<div class="coords">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div><div class="accuracy">±${Math.round(e.accuracy)}m</div>`
           : `<span style="font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--text3)">sin geo</span>`}
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})">Ver</button>` : '—'}</td>
-        <td>${usbActionButton(e)} ${currentRole === 'super_admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
+        <td>${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')">🗑</button>` : ''}</td>
       </tr>
     `).join('');
   }
@@ -983,68 +936,6 @@
     } catch { alert('No se pudo conectar al servidor'); }
   }
 
-  async function gestionarRoles() {
-    if (currentRole !== 'super_admin') return;
-    try {
-      const res = await fetch(`${SERVER}/api/usuarios`, { headers: authHeaders() });
-      if (!res.ok) { alert('No se pudieron cargar usuarios'); return; }
-      const data = await res.json();
-      const usuarios = data.usuarios || [];
-      const listado = usuarios.map((u, i) => `${i + 1}. ${u.username} (${roleLabel(u.role)})`).join('\n');
-      const selected = prompt(`Usuarios:\n${listado}\n\nEscribe el numero de usuario a modificar o NUEVO para crear usuario:`);
-      if ((selected || '').trim().toLowerCase() === 'nuevo') {
-        await crearUsuarioConRol();
-        return;
-      }
-      const index = Number(selected) - 1;
-      if (!Number.isInteger(index) || !usuarios[index]) return;
-      const role = prompt('Nuevo rol: guardia, ingeniero o super_admin', usuarios[index].role || 'ingeniero');
-      if (!['guardia', 'ingeniero', 'super_admin'].includes(role)) { alert('Rol invalido'); return; }
-      const update = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(usuarios[index].username)}/role`, {
-        method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role })
-      });
-      if (!update.ok) { const err = await update.json().catch(() => ({})); alert('Error: ' + (err.detail || update.status)); return; }
-      alert('Rol actualizado');
-    } catch {
-      alert('No se pudo conectar al servidor');
-    }
-  }
-
-  async function crearUsuarioConRol() {
-    const username = prompt('Usuario nuevo:');
-    if (!username) return;
-    const nombre = prompt('Nombre para mostrar:', username) || username;
-    const password = prompt('Contraseña temporal, minimo 6 caracteres:');
-    if (!password || password.length < 6) { alert('Contraseña invalida'); return; }
-    const role = prompt('Rol: guardia, ingeniero o super_admin', 'guardia');
-    if (!['guardia', 'ingeniero', 'super_admin'].includes(role)) { alert('Rol invalido'); return; }
-    const res = await fetch(`${SERVER}/api/usuarios`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, nombre, password, role })
-    });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-    alert(`Usuario creado con rol ${roleLabel(role)}`);
-  }
-
-  async function actualizarUsbPolicy(deviceId, blockUsbStorage) {
-    const accion = blockUsbStorage ? 'bloquear' : 'habilitar';
-    if (!confirm(`¿Quieres ${accion} almacenamiento USB en este equipo?\nEl sensor lo aplicará en el siguiente ping y requiere permisos de administrador.`)) return;
-    try {
-      const res = await fetch(`${SERVER}/api/equipos/${deviceId}/usb-policy`, {
-        method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ block_usb_storage: blockUsbStorage })
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-      await fetchData();
-    } catch {
-      alert('No se pudo conectar al servidor');
-    }
-  }
-
   async function fetchData() {
     if (!TOKEN) return;
     setStatus('loading', 'actualizando...');
@@ -1099,8 +990,6 @@
       document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-MX');
     } catch { setStatus('err', 'sin conexión'); }
   }
-
-  initSession();
 </script>
 </body>
 </html>

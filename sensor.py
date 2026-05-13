@@ -26,7 +26,6 @@ from datetime import datetime
 DEFAULT_SERVER_URL = "https://mountable-heroics-doorpost.ngrok-free.dev"
 DEFAULT_PING_INTERVAL = 30
 DEFAULT_EMPRESA_RED = "192.168.80."
-DEFAULT_BLOCK_USB_STORAGE = False
 DEFAULT_WIFI_EMPRESAS = [
     "Comite IA",
     "MC emegencia",
@@ -55,7 +54,6 @@ LOG_FILE = os.path.join(LOG_DIR, "sensor.log")
 SERVER_URL = DEFAULT_SERVER_URL
 PING_INTERVAL = DEFAULT_PING_INTERVAL
 EMPRESA_RED = DEFAULT_EMPRESA_RED
-BLOCK_USB_STORAGE = DEFAULT_BLOCK_USB_STORAGE
 WIFI_EMPRESAS = list(DEFAULT_WIFI_EMPRESAS)
 
 # ─────────────────────────────────────────────
@@ -93,7 +91,7 @@ def cargar_config():
     """
     Carga configuración opcional desde sensor_config.json.
     """
-    global SERVER_URL, PING_INTERVAL, EMPRESA_RED, WIFI_EMPRESAS, BLOCK_USB_STORAGE
+    global SERVER_URL, PING_INTERVAL, EMPRESA_RED, WIFI_EMPRESAS
 
     config_path = os.path.join(_base_dir(), "sensor_config.json")
     if not os.path.exists(config_path):
@@ -110,7 +108,6 @@ def cargar_config():
             PING_INTERVAL = 10
 
         EMPRESA_RED = str(cfg.get("EMPRESA_RED", DEFAULT_EMPRESA_RED)).strip() or DEFAULT_EMPRESA_RED
-        BLOCK_USB_STORAGE = bool(cfg.get("BLOCK_USB_STORAGE", DEFAULT_BLOCK_USB_STORAGE))
         wifi_cfg = cfg.get("WIFI_EMPRESAS", DEFAULT_WIFI_EMPRESAS)
         if isinstance(wifi_cfg, list) and wifi_cfg:
             WIFI_EMPRESAS = [str(x).strip() for x in wifi_cfg if str(x).strip()]
@@ -260,102 +257,6 @@ def esta_en_red_empresa(ip, ssid):
     return False
 
 
-def get_usb_storage_status():
-    if platform.system() != "Windows":
-        return None, 0, "Solo disponible en Windows"
-    error = ""
-    blocked = None
-    devices = 0
-    try:
-        start_value = _powershell("(Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -ErrorAction Stop).Start")
-        blocked = str(start_value).strip() == "4"
-    except Exception as e:
-        error = f"No se pudo leer estado USB: {e}"
-    try:
-        devices_value = _powershell("(Get-PnpDevice -Class USB -PresentOnly -ErrorAction SilentlyContinue | Measure-Object).Count")
-        devices = int(str(devices_value).strip() or "0")
-    except Exception:
-        devices = 0
-    return blocked, devices, error
-
-
-def fetch_usb_storage_policy(device_id):
-    try:
-        resp = requests.get(
-            f"{SERVER_URL}/api/equipos/{device_id}/usb-policy",
-            timeout=8,
-            headers=HEADERS
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            return data.get("block_usb_storage")
-    except Exception as e:
-        log(f"No se pudo consultar politica USB remota: {e}")
-    return None
-
-
-def eject_usb_storage_volumes():
-    if platform.system() != "Windows":
-        return ""
-    script = r"""
-$volumes = Get-CimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 2 -and $_.DeviceID }
-$ejected = @()
-foreach ($volume in $volumes) {
-    $drive = $volume.DeviceID
-    try {
-        $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace(17)
-        $item = $folder.ParseName($drive + "\")
-        if ($item -ne $null) {
-            $item.InvokeVerb("Eject")
-            $ejected += $drive
-        }
-    } catch {
-        Write-Output ("ERROR " + $drive + ": " + $_.Exception.Message)
-    }
-}
-if ($ejected.Count -gt 0) {
-    Write-Output ("Expulsadas: " + ($ejected -join ", "))
-}
-"""
-    try:
-        return _powershell(script).strip()
-    except Exception as e:
-        return f"No se pudieron expulsar USB conectadas: {e}"
-
-
-def apply_usb_storage_policy(block_usb_storage):
-    if block_usb_storage is None:
-        block_usb_storage = BLOCK_USB_STORAGE
-    if not block_usb_storage:
-        if platform.system() == "Windows":
-            try:
-                _powershell("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -Value 3 -ErrorAction Stop")
-            except Exception as e:
-                blocked, devices, status_error = get_usb_storage_status()
-                msg = f"No se pudo habilitar USB; requiere ejecutar como administrador: {e}"
-                if status_error:
-                    msg = f"{msg} | {status_error}"
-                return blocked, devices, msg
-        return get_usb_storage_status()
-    if platform.system() != "Windows":
-        return None, 0, "Bloqueo USB solo disponible en Windows"
-    try:
-        _powershell("Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR' -Name Start -Value 4 -ErrorAction Stop")
-        eject_msg = eject_usb_storage_volumes()
-    except Exception as e:
-        blocked, devices, status_error = get_usb_storage_status()
-        msg = f"No se pudo bloquear USB; requiere ejecutar como administrador: {e}"
-        if status_error:
-            msg = f"{msg} | {status_error}"
-        return blocked, devices, msg
-    blocked, devices, status_error = get_usb_storage_status()
-    msg = status_error
-    if eject_msg:
-        msg = f"{msg} | {eject_msg}" if msg else eject_msg
-    return blocked, devices, msg
-
-
 def get_hostname():
     return socket.gethostname()
 
@@ -439,8 +340,7 @@ def get_serial_number():
     return "", "none"
 
 
-def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status):
-    usb_blocked, usb_devices, usb_error = usb_status
+def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks):
     payload = {
         "device_id":     device_id,
         "serial_number": serial_number,
@@ -451,10 +351,7 @@ def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_ne
         "dentro":        dentro,
         "sistema":       platform.system(),
         "timestamp":     datetime.utcnow().isoformat(),
-        "wifi_networks": wifi_networks,
-        "usb_storage_blocked": usb_blocked,
-        "usb_storage_devices": usb_devices,
-        "usb_block_error": usb_error
+        "wifi_networks": wifi_networks
     }
     try:
         resp = requests.post(
@@ -464,10 +361,7 @@ def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_ne
             headers=HEADERS       # <-- FIX: header ngrok-skip-browser-warning
         )
         estado = "DENTRO  OK" if dentro else "FUERA   !!"
-        usb_txt = "USB bloqueado" if usb_blocked else "USB permitido"
-        if usb_error:
-            usb_txt = f"{usb_txt} ({usb_error})"
-        log(f"{estado} | IP: {ip} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | {usb_txt} | HTTP {resp.status_code}")
+        log(f"{estado} | IP: {ip} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | HTTP {resp.status_code}")
     except requests.exceptions.ConnectionError:
         log(f"Sin conexion al servidor - reintentando en {PING_INTERVAL}s")
     except Exception as e:
@@ -482,7 +376,6 @@ def main():
     log(f"Identificador HW: {serial_number or 'no detectado'} ({serial_source})")
     log(f"Servidor: {SERVER_URL}")
     log(f"Intervalo: {PING_INTERVAL}s")
-    log(f"Bloqueo almacenamiento USB: {'activo' if BLOCK_USB_STORAGE else 'solo monitoreo'}")
 
     while True:
         try:
@@ -493,11 +386,9 @@ def main():
             ssid          = get_wifi_ssid()
             dentro        = esta_en_red_empresa(ip, ssid)
             wifi_networks = scan_wifi_networks()
-            usb_policy    = fetch_usb_storage_policy(device_id)
-            usb_status    = apply_usb_storage_policy(usb_policy)
 
             log(f"Redes encontradas: {len(wifi_networks)}")
-            send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status)
+            send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks)
         except Exception as e:
             log(f"Error ciclo principal: {e}")
             log(traceback.format_exc())

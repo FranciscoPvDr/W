@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Integer, text
+from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -29,14 +29,12 @@ from passlib.context import CryptContext
 import httpx
 import uuid
 import os
-import secrets
 
 try:
     import firebase_admin
-    from firebase_admin import auth, credentials, firestore
+    from firebase_admin import credentials, firestore
 except ImportError:
     firebase_admin = None
-    auth = None
     credentials = None
     firestore = None
 
@@ -45,9 +43,7 @@ SECRET_KEY         = "cambia-esta-clave-secreta-en-produccion-2024"
 ALGORITHM          = "HS256"
 TOKEN_EXPIRE_HOURS = 8
 GOOGLE_API_KEY     = os.getenv("GOOGLE_API_KEY", "")
-FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY", GOOGLE_API_KEY or "AIzaSyAcBzbTSYAfrumE3BSpkZpFrq9Ih1TEV1k").strip()
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "").strip()
-SUPER_ADMIN_EMAIL = "francisco.pavana@mundocharro.mx"
 OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
 OFFICE_LNG = float(os.getenv("OFFICE_LNG", "0") or 0)
 MAX_GEO_ACCURACY_M = float(os.getenv("MAX_GEO_ACCURACY_M", "250") or 250)
@@ -139,81 +135,6 @@ def _get_firebase_db():
     return firebase_db
 
 
-def _normalizar_email_usuario(username: str, email: Optional[str] = ""):
-    value = (email or "").strip()
-    if value:
-        return value
-    user = (username or "").strip()
-    if "@" in user:
-        return user
-    return f"{user}@mundocharro.local"
-
-
-def sync_usuario_to_firebase(usuario, password: Optional[str] = None):
-    firebase_client = _get_firebase_db()
-    if not firebase_client or auth is None:
-        return None
-    email = _normalizar_email_usuario(usuario.username, usuario.email)
-    uid = usuario.firebase_uid
-    try:
-        if uid:
-            auth.update_user(uid, email=email, display_name=usuario.nombre or usuario.username, disabled=not usuario.activo)
-        else:
-            try:
-                user_record = auth.get_user_by_email(email)
-            except Exception:
-                user_record = auth.create_user(
-                    email=email,
-                    password=password,
-                    display_name=usuario.nombre or usuario.username,
-                    disabled=not usuario.activo
-                )
-            uid = user_record.uid
-            usuario.firebase_uid = uid
-            usuario.email = email
-        firebase_client.collection("usuarios").document(uid).set({
-            "uid": uid,
-            "username": usuario.username,
-            "email": email,
-            "nombre": usuario.nombre or usuario.username,
-            "role": usuario.role or "ingeniero",
-            "activo": bool(usuario.activo),
-            "updatedAt": firestore.SERVER_TIMESTAMP,
-        }, merge=True)
-        return uid
-    except Exception as e:
-        print(f"No se pudo sincronizar usuario {usuario.username} con Firebase: {e}")
-        return None
-
-
-def actualizar_password_usuario(usuario, password_nueva: str):
-    usuario.password = pwd_context.hash(password_nueva)
-    if usuario.firebase_uid and auth is not None:
-        try:
-            auth.update_user(usuario.firebase_uid, password=password_nueva)
-        except Exception as e:
-            print(f"No se pudo actualizar password Firebase para {usuario.username}: {e}")
-
-
-def autenticar_firebase_email(email: str, password: str):
-    if not FIREBASE_WEB_API_KEY:
-        return None
-    try:
-        resp = httpx.post(
-            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_WEB_API_KEY}",
-            json={"email": email, "password": password, "returnSecureToken": True},
-            timeout=10
-        )
-        if resp.status_code != 200:
-            print(f"Firebase Auth login fallo para {email}: {resp.status_code} {resp.text[:300]}")
-            return None
-        data = resp.json()
-        return {"uid": data.get("localId"), "email": data.get("email", email).lower()}
-    except Exception as e:
-        print(f"No se pudo autenticar contra Firebase Auth: {e}")
-        return None
-
-
 class PingLog(Base):
     __tablename__ = "ping_logs"
     id        = Column(String, primary_key=True)
@@ -228,9 +149,6 @@ class PingLog(Base):
     lat       = Column(Float, nullable=True)
     lng       = Column(Float, nullable=True)
     accuracy  = Column(Float, nullable=True)
-    usb_storage_blocked = Column(Boolean, nullable=True)
-    usb_storage_devices = Column(Integer, nullable=True)
-    usb_block_error = Column(String, nullable=True)
 
 
 class Equipo(Base):
@@ -247,11 +165,6 @@ class Equipo(Base):
     lat         = Column(Float, nullable=True)
     lng         = Column(Float, nullable=True)
     accuracy    = Column(Float, nullable=True)
-    usb_storage_blocked = Column(Boolean, nullable=True)
-    usb_storage_policy = Column(Boolean, nullable=True)
-    usb_storage_devices = Column(Integer, nullable=True)
-    usb_block_error = Column(String, nullable=True)
-    usb_updated_at = Column(DateTime, nullable=True)
 
 
 class Usuario(Base):
@@ -260,11 +173,6 @@ class Usuario(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     nombre   = Column(String)
-    role     = Column(String, default="ingeniero")
-    email    = Column(String, nullable=True)
-    firebase_uid = Column(String, nullable=True)
-    reset_token = Column(String, nullable=True)
-    reset_expires = Column(DateTime, nullable=True)
     activo   = Column(Boolean, default=True)
 
 
@@ -279,39 +187,10 @@ def _ensure_sqlite_columns():
         equipos_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(equipos)"))}
         if "serial_number" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN serial_number TEXT"))
-        if "usb_storage_blocked" not in equipos_cols:
-            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_blocked BOOLEAN"))
-        if "usb_storage_policy" not in equipos_cols:
-            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_policy BOOLEAN"))
-        if "usb_storage_devices" not in equipos_cols:
-            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_devices INTEGER"))
-        if "usb_block_error" not in equipos_cols:
-            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_block_error TEXT"))
-        if "usb_updated_at" not in equipos_cols:
-            conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_updated_at DATETIME"))
 
         ping_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(ping_logs)"))}
         if "serial_number" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN serial_number TEXT"))
-        if "usb_storage_blocked" not in ping_cols:
-            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_blocked BOOLEAN"))
-        if "usb_storage_devices" not in ping_cols:
-            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_devices INTEGER"))
-        if "usb_block_error" not in ping_cols:
-            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_block_error TEXT"))
-
-        usuarios_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(usuarios)"))}
-        if "role" not in usuarios_cols:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN role TEXT DEFAULT 'ingeniero'"))
-        if "email" not in usuarios_cols:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN email TEXT"))
-        if "firebase_uid" not in usuarios_cols:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN firebase_uid TEXT"))
-        if "reset_token" not in usuarios_cols:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN reset_token TEXT"))
-        if "reset_expires" not in usuarios_cols:
-            conn.execute(text("ALTER TABLE usuarios ADD COLUMN reset_expires DATETIME"))
-        conn.execute(text("UPDATE usuarios SET role = 'super_admin' WHERE username = 'admin' AND (role IS NULL OR role = '')"))
         conn.commit()
 
 
@@ -329,35 +208,11 @@ def crear_admin():
                 username = "admin",
                 password = pwd_context.hash("admin123"),
                 nombre   = "Administrador",
-                role     = "super_admin",
                 activo   = True
             )
             db.add(admin)
             db.commit()
             print("Usuario admin creado - user: admin / pass: admin123")
-
-        super_admin = db.query(Usuario).filter_by(username=SUPER_ADMIN_EMAIL).first()
-        if not super_admin:
-            super_admin = Usuario(
-                id       = str(uuid.uuid4()),
-                username = SUPER_ADMIN_EMAIL,
-                password = pwd_context.hash(os.getenv("SUPER_ADMIN_DEFAULT_PASSWORD", "admin123")),
-                nombre   = "Francisco Pavana",
-                email    = SUPER_ADMIN_EMAIL,
-                role     = "super_admin",
-                activo   = True
-            )
-            db.add(super_admin)
-            db.commit()
-            print(f"Super admin web creado - user: {SUPER_ADMIN_EMAIL}")
-        else:
-            super_admin.email = super_admin.email or SUPER_ADMIN_EMAIL
-            super_admin.role = "super_admin"
-            super_admin.activo = True
-            db.commit()
-
-        sync_usuario_to_firebase(super_admin)
-        db.commit()
     finally:
         db.close()
 
@@ -380,47 +235,17 @@ class PingRequest(BaseModel):
     sistema:       Optional[str] = ""
     timestamp:     str
     wifi_networks: Optional[List[WifiNetwork]] = []
-    usb_storage_blocked: Optional[bool] = None
-    usb_storage_devices: Optional[int] = None
-    usb_block_error: Optional[str] = ""
 
 
 class UsuarioCreate(BaseModel):
     username: str
     password: str
     nombre:   str
-    email:    Optional[str] = ""
-    role:     Optional[str] = "ingeniero"
-
-
-class UsuarioRoleUpdate(BaseModel):
-    role: str
-
-
-class UsbPolicyUpdate(BaseModel):
-    block_usb_storage: bool
-
-
-class EquipoRegistro(BaseModel):
-    numInventario: Optional[str] = ""
-    asignado: Optional[str] = ""
-    departamento: Optional[str] = ""
-    puesto: Optional[str] = ""
 
 
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva:  str
-
-
-class ResetPasswordConfirm(BaseModel):
-    token: str
-    password_nueva: str
-
-
-class DebugFirebaseLogin(BaseModel):
-    email: str
-    password: str
 
 
 def inferir_ubicacion(dentro: bool, ssid: Optional[str]) -> str:
@@ -480,9 +305,6 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
 
     ultimo_ping_iso = equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None
     primer_ping_iso = equipo.primer_ping.isoformat() if equipo.primer_ping else None
-    limite_offline = datetime.utcnow() - timedelta(minutes=2)
-    online = equipo.ultimo_ping >= limite_offline if equipo.ultimo_ping else False
-    sin_senal = not online
     ubicacion = inferir_ubicacion(equipo.dentro, equipo.ssid)
     doc_id = _resolver_doc_firestore(equipo, serial_number)
     serie = (serial_number or equipo.serial_number or "").strip()
@@ -493,9 +315,6 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "ip": equipo.ip or "",
         "ssid": equipo.ssid or "",
         "dentro": bool(equipo.dentro),
-        "online": online,
-        "sinSenal": sin_senal,
-        "estadoConexion": "online" if online else "sin_senal",
         "sistema": equipo.sistema or "",
         "ubicacion": ubicacion,
         "geo": {
@@ -506,11 +325,6 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         "lat": equipo.lat,
         "lng": equipo.lng,
         "accuracy": equipo.accuracy,
-        "usbStorageBlocked": equipo.usb_storage_blocked,
-        "usbStoragePolicy": equipo.usb_storage_policy,
-        "usbStorageDevices": equipo.usb_storage_devices,
-        "usbBlockError": equipo.usb_block_error or "",
-        "usbUpdatedAt": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
         "ultimoPing": ultimo_ping_iso,
         "primerPing": primer_ping_iso,
         "actualizadoEn": datetime.utcnow().isoformat(),
@@ -557,23 +371,6 @@ def _obtener_asignacion_firestore(equipo: Equipo):
     }
 
 
-def _eliminar_doc_firestore_equipo(equipo: Equipo):
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        return
-    candidatos = {equipo.device_id}
-    serie = (equipo.serial_number or "").strip()
-    if serie:
-        doc_id, _ = _buscar_doc_firestore_por_serie(serie)
-        if doc_id:
-            candidatos.add(doc_id)
-    for doc_id in candidatos:
-        try:
-            firebase_client.collection("equipos").document(doc_id).delete()
-        except Exception as e:
-            print(f"No se pudo borrar doc Firestore {doc_id}: {e}")
-
-
 # ── Helpers JWT ────────────────────────────────────────────────────────────
 def verificar_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
@@ -596,18 +393,9 @@ def get_usuario_actual(token: str = Depends(oauth2_scheme)):
         usuario = db.query(Usuario).filter_by(username=username, activo=True).first()
         if not usuario:
             raise HTTPException(status_code=401, detail="Usuario no encontrado")
-        return {"username": usuario.username, "nombre": usuario.nombre, "role": usuario.role or "ingeniero"}
+        return {"username": usuario.username, "nombre": usuario.nombre}
     finally:
         db.close()
-
-
-def exigir_super_admin(usuario):
-    if usuario.get("role") != "super_admin":
-        raise HTTPException(status_code=403, detail="Solo super admin puede realizar esta accion")
-
-
-def puede_ver_inventario(usuario):
-    return usuario.get("role") != "guardia"
 
 
 # ── Geolocalización Google ─────────────────────────────────────────────────
@@ -645,38 +433,11 @@ async def geolocate(wifi_networks: list):
 def login(form: OAuth2PasswordRequestForm = Depends()):
     db = Session()
     try:
-        username = form.username.strip()
-        usuario = db.query(Usuario).filter_by(username=username).first()
-        if not usuario:
-            usuario = db.query(Usuario).filter_by(email=username).first()
-        firebase_login = None
-        if "@" in username:
-            firebase_login = autenticar_firebase_email(username, form.password)
-        if firebase_login and not usuario:
-            usuario = Usuario(
-                id       = str(uuid.uuid4()),
-                username = firebase_login["email"],
-                password = pwd_context.hash(form.password),
-                nombre   = firebase_login["email"].split("@")[0],
-                email    = firebase_login["email"],
-                firebase_uid = firebase_login["uid"],
-                role     = "super_admin" if firebase_login["email"] == SUPER_ADMIN_EMAIL else "ingeniero",
-                activo   = True
-            )
-            db.add(usuario)
-            db.commit()
-        elif firebase_login and usuario:
-            usuario.email = firebase_login["email"]
-            usuario.firebase_uid = usuario.firebase_uid or firebase_login["uid"]
-            usuario.activo = True
-            if firebase_login["email"] == SUPER_ADMIN_EMAIL:
-                usuario.role = "super_admin"
-            db.commit()
-        if not usuario or not usuario.activo or (not firebase_login and not verificar_password(form.password, usuario.password)):
+        usuario = db.query(Usuario).filter_by(username=form.username, activo=True).first()
+        if not usuario or not verificar_password(form.password, usuario.password):
             raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
-        role = usuario.role or "ingeniero"
-        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": role})
-        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "role": role}
+        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre})
+        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "username": usuario.username}
     finally:
         db.close()
 
@@ -688,9 +449,6 @@ def me(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/usuarios")
 def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    if data.role not in {"guardia", "ingeniero", "super_admin"}:
-        raise HTTPException(status_code=400, detail="Rol invalido")
     db = Session()
     try:
         existe = db.query(Usuario).filter_by(username=data.username).first()
@@ -701,33 +459,27 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
             username = data.username,
             password = pwd_context.hash(data.password),
             nombre   = data.nombre,
-            email    = _normalizar_email_usuario(data.username, data.email),
-            role     = data.role or "ingeniero",
             activo   = True
         )
         db.add(nuevo)
         db.commit()
-        sync_usuario_to_firebase(nuevo, data.password)
-        db.commit()
-        return {"ok": True, "mensaje": f"Usuario {data.username} creado", "email": nuevo.email, "firebase_uid": nuevo.firebase_uid}
+        return {"ok": True, "mensaje": f"Usuario {data.username} creado"}
     finally:
         db.close()
 
 
 @app.get("/api/usuarios")
 def listar_usuarios(usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
     db = Session()
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
-        return {"usuarios": [{"username": u.username, "nombre": u.nombre, "email": u.email, "firebase_uid": u.firebase_uid, "role": u.role or "ingeniero"} for u in usuarios]}
+        return {"usuarios": [{"username": u.username, "nombre": u.nombre} for u in usuarios]}
     finally:
         db.close()
 
 
 @app.delete("/api/usuarios/{username}")
 def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
     if username == "admin":
         raise HTTPException(status_code=400, detail="No se puede eliminar el admin")
     db = Session()
@@ -737,28 +489,7 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         u.activo = False
         db.commit()
-        sync_usuario_to_firebase(u)
-        db.commit()
         return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
-    finally:
-        db.close()
-
-
-@app.patch("/api/usuarios/{username}/role")
-def actualizar_role_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    if data.role not in {"guardia", "ingeniero", "super_admin"}:
-        raise HTTPException(status_code=400, detail="Rol invalido")
-    db = Session()
-    try:
-        u = db.query(Usuario).filter_by(username=username, activo=True).first()
-        if not u:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        u.role = data.role
-        db.commit()
-        sync_usuario_to_firebase(u)
-        db.commit()
-        return {"ok": True, "mensaje": f"Rol actualizado para {username}", "role": data.role}
     finally:
         db.close()
 
@@ -770,77 +501,11 @@ def cambiar_password(data: CambiarPassword, usuario=Depends(get_usuario_actual))
         u = db.query(Usuario).filter_by(username=usuario["username"]).first()
         if not verificar_password(data.password_actual, u.password):
             raise HTTPException(status_code=400, detail="Contrasena actual incorrecta")
-        actualizar_password_usuario(u, data.password_nueva)
+        u.password = pwd_context.hash(data.password_nueva)
         db.commit()
         return {"ok": True, "mensaje": "Contrasena actualizada"}
     finally:
         db.close()
-
-
-@app.post("/api/usuarios/{username}/reset-token")
-def generar_reset_token(username: str, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    db = Session()
-    try:
-        u = db.query(Usuario).filter_by(username=username, activo=True).first()
-        if not u:
-            u = db.query(Usuario).filter_by(email=username, activo=True).first()
-        if not u:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        token = secrets.token_urlsafe(32)
-        u.reset_token = token
-        u.reset_expires = datetime.utcnow() + timedelta(minutes=30)
-        db.commit()
-        return {
-            "ok": True,
-            "reset_url": f"/reset-password?token={token}",
-            "expires_at": u.reset_expires.isoformat()
-        }
-    finally:
-        db.close()
-
-
-@app.post("/api/password-reset/confirm")
-def confirmar_reset_password(data: ResetPasswordConfirm):
-    if len(data.password_nueva or "") < 6:
-        raise HTTPException(status_code=400, detail="La contrasena debe tener al menos 6 caracteres")
-    db = Session()
-    try:
-        u = db.query(Usuario).filter_by(reset_token=data.token, activo=True).first()
-        if not u or not u.reset_expires or u.reset_expires < datetime.utcnow():
-            raise HTTPException(status_code=400, detail="Token invalido o expirado")
-        if not u.firebase_uid:
-            sync_usuario_to_firebase(u)
-        actualizar_password_usuario(u, data.password_nueva)
-        u.reset_token = None
-        u.reset_expires = None
-        db.commit()
-        return {"ok": True, "mensaje": "Contrasena actualizada"}
-    finally:
-        db.close()
-
-
-@app.post("/api/debug/firebase-login")
-def debug_firebase_login(data: DebugFirebaseLogin, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    if not FIREBASE_WEB_API_KEY:
-        return {"ok": False, "error": "FIREBASE_WEB_API_KEY no configurada"}
-    try:
-        resp = httpx.post(
-            f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={FIREBASE_WEB_API_KEY}",
-            json={"email": data.email.strip(), "password": data.password, "returnSecureToken": True},
-            timeout=10
-        )
-        payload = resp.json()
-        if resp.status_code == 200:
-            return {"ok": True, "email": payload.get("email"), "uid": payload.get("localId")}
-        return {
-            "ok": False,
-            "status": resp.status_code,
-            "firebase_error": payload.get("error", {}).get("message", "unknown")
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 # ── Endpoint del sensor (sin autenticacion) ────────────────────────────────
@@ -889,10 +554,7 @@ async def recibir_ping(data: PingRequest):
             timestamp = ahora,
             lat       = lat,
             lng       = lng,
-            accuracy  = accuracy,
-            usb_storage_blocked = data.usb_storage_blocked,
-            usb_storage_devices = data.usb_storage_devices,
-            usb_block_error = data.usb_block_error or ""
+            accuracy  = accuracy
         )
         db.add(log)
 
@@ -921,12 +583,6 @@ async def recibir_ping(data: PingRequest):
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
-            equipo.usb_storage_blocked = data.usb_storage_blocked
-            if equipo.usb_storage_policy is None and data.usb_storage_blocked is not None:
-                equipo.usb_storage_policy = data.usb_storage_blocked
-            equipo.usb_storage_devices = data.usb_storage_devices
-            equipo.usb_block_error = data.usb_block_error or ""
-            equipo.usb_updated_at = ahora
             if lat:
                 equipo.lat      = lat
                 equipo.lng      = lng
@@ -944,12 +600,7 @@ async def recibir_ping(data: PingRequest):
                 primer_ping = ahora,
                 lat         = lat,
                 lng         = lng,
-                accuracy    = accuracy,
-                usb_storage_blocked = data.usb_storage_blocked,
-                usb_storage_policy = data.usb_storage_blocked,
-                usb_storage_devices = data.usb_storage_devices,
-                usb_block_error = data.usb_block_error or "",
-                usb_updated_at = ahora
+                accuracy    = accuracy
             )
             db.add(equipo)
 
@@ -958,18 +609,6 @@ async def recibir_ping(data: PingRequest):
         geo = f"lat:{lat:.4f},lng:{lng:.4f},acc:{accuracy:.0f}m" if lat else "sin geo"
         print(f"Ping [{data.hostname}] {'DENTRO' if data.dentro else 'FUERA'} | {geo}")
         return {"ok": True, "mensaje": "Ping registrado", "geo": {"lat": lat, "lng": lng, "accuracy": accuracy}}
-    finally:
-        db.close()
-
-
-@app.get("/api/equipos/{device_id}/usb-policy")
-def obtener_usb_policy(device_id: str):
-    db = Session()
-    try:
-        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
-        if not equipo:
-            return {"block_usb_storage": None}
-        return {"block_usb_storage": equipo.usb_storage_policy}
     finally:
         db.close()
 
@@ -986,85 +625,25 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
         for e in equipos:
             online = e.ultimo_ping >= limite_offline if e.ultimo_ping else False
             asignacion = _obtener_asignacion_firestore(e)
-            item = {
+            resultado.append({
                 "device_id":   e.device_id,
                 "serial_number": e.serial_number,
+                "numInventario": asignacion.get("numInventario", ""),
+                "asignado": asignacion.get("asignado", ""),
+                "departamento": asignacion.get("departamento", ""),
+                "puesto": asignacion.get("puesto", ""),
                 "hostname":    e.hostname,
-                "inventariado": bool(asignacion.get("numInventario") or asignacion.get("asignado")),
+                "ip":          e.ip,
+                "ssid":        e.ssid,
                 "dentro":      e.dentro,
                 "online":      online,
+                "sistema":     e.sistema,
                 "ultimo_ping": e.ultimo_ping.isoformat() if e.ultimo_ping else None,
                 "lat":         e.lat,
                 "lng":         e.lng,
                 "accuracy":    e.accuracy,
-                "usb_storage_blocked": e.usb_storage_blocked,
-                "usb_storage_policy": e.usb_storage_policy,
-                "usb_storage_devices": e.usb_storage_devices,
-                "usb_block_error": e.usb_block_error,
-                "usb_updated_at": e.usb_updated_at.isoformat() if e.usb_updated_at else None,
-            }
-            if puede_ver_inventario(usuario):
-                item.update({
-                    "numInventario": asignacion.get("numInventario", ""),
-                    "asignado": asignacion.get("asignado", ""),
-                    "departamento": asignacion.get("departamento", ""),
-                    "puesto": asignacion.get("puesto", ""),
-                    "ip": e.ip,
-                    "ssid": e.ssid,
-                    "sistema": e.sistema,
-                })
-            resultado.append(item)
+            })
         return {"equipos": resultado, "total": len(resultado)}
-    finally:
-        db.close()
-
-
-@app.patch("/api/equipos/{device_id}/usb-policy")
-def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    db = Session()
-    try:
-        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
-        if not equipo:
-            raise HTTPException(status_code=404, detail="Equipo no encontrado")
-        equipo.usb_storage_policy = data.block_usb_storage
-        db.commit()
-        sync_equipo_to_firestore(equipo, equipo.serial_number)
-        accion = "bloquear" if data.block_usb_storage else "habilitar"
-        return {"ok": True, "mensaje": f"Politica USB actualizada: {accion}", "block_usb_storage": data.block_usb_storage}
-    finally:
-        db.close()
-
-
-@app.post("/api/equipos/{device_id}/registrar")
-def registrar_equipo_inventario(device_id: str, data: EquipoRegistro, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    firebase_client = _get_firebase_db()
-    if not firebase_client:
-        raise HTTPException(status_code=400, detail="Firebase no configurado")
-    db = Session()
-    try:
-        equipo = db.query(Equipo).filter_by(device_id=device_id).first()
-        if not equipo:
-            raise HTTPException(status_code=404, detail="Equipo no encontrado")
-        doc_id = _resolver_doc_firestore(equipo, equipo.serial_number)
-        payload = {
-            "deviceId": equipo.device_id,
-            "serie": equipo.serial_number or "",
-            "hostname": equipo.hostname or "",
-            "tipo": "Laptop",
-            "subtipo": "Laptop",
-            "numInventario": (data.numInventario or "").strip(),
-            "asignado": (data.asignado or "").strip(),
-            "departamento": (data.departamento or "").strip(),
-            "puesto": (data.puesto or "").strip(),
-            "origen": "sensor_validado",
-            "inventariado": True,
-            "actualizadoEn": datetime.utcnow().isoformat(),
-        }
-        firebase_client.collection("equipos").document(doc_id).set(payload, merge=True)
-        sync_equipo_to_firestore(equipo, equipo.serial_number)
-        return {"ok": True, "mensaje": "Laptop registrada como inventario oficial"}
     finally:
         db.close()
 
@@ -1075,7 +654,9 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     Elimina un equipo de la BD (y su historial de pings).
     Útil para limpiar duplicados o equipos dados de baja.
     """
-    exigir_super_admin(usuario)
+    if usuario["username"] != "admin":
+        raise HTTPException(status_code=403, detail="Solo el super admin puede eliminar equipos")
+
     db = Session()
     try:
         equipo = db.query(Equipo).filter_by(device_id=device_id).first()
@@ -1083,7 +664,6 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
         # Borrar historial de pings asociado
         db.query(PingLog).filter_by(device_id=device_id).delete()
-        _eliminar_doc_firestore_equipo(equipo)
         db.delete(equipo)
         db.commit()
         print(f"Equipo eliminado: {device_id} ({equipo.hostname})")
@@ -1290,32 +870,6 @@ def debug_ultimos_pings(limite: int = 20, usuario=Depends(get_usuario_actual)):
 def dashboard():
     return FileResponse("dashboard.html")
 
-
-@app.get("/equipos")
-def equipos_page():
-    return FileResponse("equipos.html")
-
-
-@app.get("/usuarios")
-def usuarios_page():
-    return FileResponse("usuarios.html")
-
-
-@app.get("/guardia")
-def guardia_page():
-    return FileResponse("guardia.html")
-
-
-@app.get("/login")
-def login_page():
-    return FileResponse("login.html")
-
-
-@app.get("/reset-password")
-def reset_password_page():
-    return FileResponse("reset-password.html")
-
-
 @app.get("/")
 def root():
-    return FileResponse("login.html")
+    return {"estado": "Monitor de equipos activo", "version": "3.0"}
