@@ -427,18 +427,45 @@ def _buscar_asset_supabase_por_serie(serie: str):
     return None
 
 
+def _asset_tipo_normalizado(row: dict) -> str:
+    return str(row.get("tipo") or "").strip().lower()
+
+
+def _es_asset_computadora(row: dict) -> bool:
+    tipo = _asset_tipo_normalizado(row)
+    subtipo = str(row.get("subtipo") or "").strip().lower()
+    texto = f"{tipo} {subtipo}"
+    return any(x in texto for x in ["laptop", "desktop", "escritorio", "pc", "computadora"])
+
+
+def _asset_score(row: dict) -> int:
+    score = 0
+    if _es_asset_computadora(row):
+        score += 100
+    for key in ["num_inventario", "asignado", "departamento", "puesto", "marca", "modelo", "fecha_compra", "notas"]:
+        if str(row.get(key) or "").strip():
+            score += 10
+    if _normalizar_serie(row.get("serie")):
+        score += 5
+    if _asset_tipo_normalizado(row) and _asset_tipo_normalizado(row) != "otro":
+        score += 5
+    return score
+
+
 def _dedupe_assets_por_serie(rows: list) -> list:
-    resultado = []
-    vistos = set()
+    mejores = {}
+    sin_serie = []
     for row in rows or []:
         if not isinstance(row, dict):
             continue
-        clave = _normalizar_serie(row.get("serie")) or str(row.get("id") or "").strip()
-        if not clave or clave in vistos:
+        clave = _normalizar_serie(row.get("serie"))
+        if not clave:
+            sin_serie.append(row)
             continue
-        vistos.add(clave)
-        resultado.append(row)
-    return resultado
+        actual = mejores.get(clave)
+        if actual is None or _asset_score(row) > _asset_score(actual):
+            mejores[clave] = row
+    return list(mejores.values()) + sin_serie
 
 
 def _assets_rows_to_api(rows: list) -> list:
@@ -1422,7 +1449,9 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
 
         try:
             assets_supabase = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-            for asset in assets_supabase:
+            for asset in _dedupe_assets_por_serie(assets_supabase):
+                if not _es_asset_computadora(asset):
+                    continue
                 serie = _safe_firestore_text(asset.get("serie"))
                 clave = _normalizar_serie(serie) or _safe_firestore_text(asset.get("id"))
                 if not clave or clave in resultado_por_clave:
