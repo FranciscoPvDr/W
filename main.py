@@ -428,13 +428,25 @@ def _buscar_asset_supabase_por_serie(serie: str):
 def _dedupe_assets_por_serie(rows: list) -> list:
     resultado = []
     vistos = set()
-    for row in rows:
-        clave = _normalizar_serie(row.get("serie")) or _safe_firestore_text(row.get("id"))
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        clave = _normalizar_serie(row.get("serie")) or str(row.get("id") or "").strip()
         if not clave or clave in vistos:
             continue
         vistos.add(clave)
         resultado.append(row)
     return resultado
+
+
+def _assets_rows_to_api(rows: list) -> list:
+    assets = []
+    for row in _dedupe_assets_por_serie(rows):
+        try:
+            assets.append(_asset_row_to_api(row))
+        except Exception as e:
+            print(f"Fila de asset omitida por error: {e}")
+    return assets
 
 
 def _resolver_doc_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
@@ -975,7 +987,7 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
     if cached is not None:
         return cached
     rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-    resultado = {"assets": [_asset_row_to_api(row) for row in _dedupe_assets_por_serie(rows)], "omitidos": []}
+    resultado = {"assets": _assets_rows_to_api(rows), "omitidos": []}
     _cache_set("assets", resultado)
     return resultado
 
@@ -1000,15 +1012,10 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
 def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
     payload = _asset_payload_supabase(data)
-    existente = _buscar_asset_supabase_por_serie(payload.get("serie") or "")
-    destino_id = asset_id
-    if existente and _safe_firestore_text(existente.get("id")) != asset_id:
-        destino_id = _safe_firestore_text(existente.get("id"))
-        _supabase_request("DELETE", "equipos", params={"id": f"eq.{asset_id}"}, prefer="return=minimal")
     payload.pop("id", None)
-    _supabase_request("PATCH", "equipos", params={"id": f"eq.{destino_id}"}, json=payload)
+    _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
     _cache_clear("assets")
-    return {"ok": True, "id": destino_id}
+    return {"ok": True, "id": asset_id}
 
 
 @app.delete("/api/assets/{asset_id}")
@@ -1089,7 +1096,7 @@ def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=De
 @app.get("/api/mobile/assets")
 def mobile_listar_assets():
     rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-    return {"assets": [_asset_row_to_api(row) for row in _dedupe_assets_por_serie(rows)], "omitidos": []}
+    return {"assets": _assets_rows_to_api(rows), "omitidos": []}
 
 
 @app.get("/api/mobile/movimientos")
