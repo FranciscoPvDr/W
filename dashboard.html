@@ -570,13 +570,6 @@
   }
   .del-btn:hover { background: var(--red-bg); color: var(--red-t); border-color: rgba(248,81,73,0.3); }
 
-  .admin-panel {
-    display: none;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
   .admin-card {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -689,7 +682,6 @@
     header { padding: 0 1rem; }
     main { padding: 1rem; }
     .metrics { grid-template-columns: repeat(2,1fr); }
-    .admin-panel { grid-template-columns: 1fr; }
     .table-wrap { overflow-x: auto; }
     table { min-width: 800px; }
     #map-container { height: 420px; }
@@ -793,40 +785,6 @@
       <span id="last-update"></span>
     </div>
 
-    <div id="admin-panel" class="admin-panel">
-      <div class="admin-card">
-        <h3>Usuarios</h3>
-        <div class="admin-grid">
-          <input id="user-username" placeholder="usuario" />
-          <input id="user-name" placeholder="nombre" />
-          <input id="user-password" placeholder="contraseña" type="password" />
-        </div>
-        <div class="admin-actions">
-          <button class="refresh-btn" onclick="crearUsuario()">Agregar usuario</button>
-          <button class="refresh-btn" onclick="cargarUsuarios()">Actualizar</button>
-        </div>
-        <div id="usuarios-list" class="admin-list"></div>
-      </div>
-      <div class="admin-card">
-        <h3>Assets inventario</h3>
-        <div class="admin-grid">
-          <input id="asset-num" placeholder="num inventario" />
-          <input id="asset-serie" placeholder="serie" />
-          <input id="asset-tipo" placeholder="tipo" value="Laptop" />
-          <input id="asset-marca" placeholder="marca" />
-          <input id="asset-modelo" placeholder="modelo" />
-          <input id="asset-asignado" placeholder="asignado a" />
-          <input id="asset-depto" placeholder="departamento" />
-          <input id="asset-puesto" placeholder="puesto" />
-        </div>
-        <div class="admin-actions">
-          <button class="refresh-btn" onclick="crearAsset()">Agregar asset</button>
-          <button class="refresh-btn" onclick="cargarAssets()">Actualizar</button>
-        </div>
-        <div id="assets-list" class="admin-list"></div>
-      </div>
-    </div>
-
     <div id="lista-view">
       <div class="table-wrap">
         <table>
@@ -877,8 +835,6 @@
     document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
-    document.getElementById('admin-panel').style.display = CURRENT_USERNAME === 'admin' ? 'grid' : 'none';
-    if (CURRENT_USERNAME === 'admin') { cargarUsuarios(); cargarAssets(); }
     fetchData();
     refreshInterval = setInterval(fetchData, 30000);
   }
@@ -905,13 +861,11 @@
       localStorage.setItem('monitor_username', CURRENT_USERNAME);
       localStorage.setItem('monitor_nombre', data.nombre || user);
       localStorage.setItem('monitor_role', data.role || (CURRENT_USERNAME === 'admin' ? 'super_admin' : 'ingeniero'));
-      document.getElementById('admin-panel').style.display = CURRENT_USERNAME === 'admin' ? 'grid' : 'none';
       const nombre = data.nombre || user;
       document.getElementById('user-display').textContent = nombre;
       document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard-screen').style.display = 'block';
-      if (CURRENT_USERNAME === 'admin') { cargarUsuarios(); cargarAssets(); }
       fetchData();
       refreshInterval = setInterval(fetchData, 30000);
     } catch {
@@ -924,7 +878,6 @@
     TOKEN = null;
     CURRENT_USERNAME = '';
     localStorage.clear();
-    document.getElementById('admin-panel').style.display = 'none';
     clearInterval(refreshInterval);
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('dashboard-screen').style.display = 'none';
@@ -1121,106 +1074,6 @@
     } catch {
       alert('No se pudo conectar al servidor');
     }
-  }
-
-  async function cargarUsuarios() {
-    if (CURRENT_USERNAME !== 'admin') return;
-    const el = document.getElementById('usuarios-list');
-    el.innerHTML = '<div class="admin-item">Cargando...</div>';
-    try {
-      const res = await fetch(`${SERVER}/api/usuarios`, { headers: authHeaders() });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const usuarios = data.usuarios || [];
-      el.innerHTML = usuarios.map(u => `
-        <div class="admin-item">
-          <span><strong>${u.username}</strong> · ${u.nombre || ''}</span>
-          ${u.username !== 'admin' ? `<button class="del-btn" onclick="eliminarUsuario('${u.username}')">🗑</button>` : ''}
-        </div>
-      `).join('') || '<div class="admin-item">Sin usuarios</div>';
-    } catch { el.innerHTML = '<div class="admin-item">No se pudieron cargar usuarios</div>'; }
-  }
-
-  async function crearUsuario() {
-    const username = document.getElementById('user-username').value.trim();
-    const nombre = document.getElementById('user-name').value.trim();
-    const password = document.getElementById('user-password').value;
-    if (!username || !nombre || !password) { alert('Completa usuario, nombre y contraseña'); return; }
-    try {
-      const res = await fetch(`${SERVER}/api/usuarios`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, nombre, password })
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-      document.getElementById('user-username').value = '';
-      document.getElementById('user-name').value = '';
-      document.getElementById('user-password').value = '';
-      cargarUsuarios();
-    } catch { alert('No se pudo conectar al servidor'); }
-  }
-
-  async function eliminarUsuario(username) {
-    if (!confirm(`¿Eliminar usuario "${username}"?`)) return;
-    try {
-      const res = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(username)}`, { method: 'DELETE', headers: authHeaders() });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-      cargarUsuarios();
-    } catch { alert('No se pudo conectar al servidor'); }
-  }
-
-  async function cargarAssets() {
-    if (CURRENT_USERNAME !== 'admin') return;
-    const el = document.getElementById('assets-list');
-    el.innerHTML = '<div class="admin-item">Cargando...</div>';
-    try {
-      const res = await fetch(`${SERVER}/api/assets`, { headers: authHeaders() });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const assets = data.assets || [];
-      el.innerHTML = assets.map(a => `
-        <div class="admin-item">
-          <span><strong>${a.serie || a.numInventario || a.id}</strong> · ${a.asignado || 'Sin asignar'}</span>
-          <button class="del-btn" onclick="eliminarAsset('${a.id}')">🗑</button>
-        </div>
-      `).join('') || '<div class="admin-item">Sin assets</div>';
-    } catch { el.innerHTML = '<div class="admin-item">No se pudieron cargar assets</div>'; }
-  }
-
-  async function crearAsset() {
-    const payload = {
-      numInventario: document.getElementById('asset-num').value.trim(),
-      serie: document.getElementById('asset-serie').value.trim(),
-      tipo: document.getElementById('asset-tipo').value.trim() || 'Laptop',
-      marca: document.getElementById('asset-marca').value.trim(),
-      modelo: document.getElementById('asset-modelo').value.trim(),
-      asignado: document.getElementById('asset-asignado').value.trim(),
-      departamento: document.getElementById('asset-depto').value.trim(),
-      puesto: document.getElementById('asset-puesto').value.trim()
-    };
-    if (!payload.serie && !payload.numInventario) { alert('Captura serie o número de inventario'); return; }
-    try {
-      const res = await fetch(`${SERVER}/api/assets`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-      ['asset-num','asset-serie','asset-marca','asset-modelo','asset-asignado','asset-depto','asset-puesto'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('asset-tipo').value = 'Laptop';
-      cargarAssets();
-      fetchData();
-    } catch { alert('No se pudo conectar al servidor'); }
-  }
-
-  async function eliminarAsset(assetId) {
-    if (!confirm(`¿Eliminar asset "${assetId}" del inventario Firebase?`)) return;
-    try {
-      const res = await fetch(`${SERVER}/api/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE', headers: authHeaders() });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
-      cargarAssets();
-      fetchData();
-    } catch { alert('No se pudo conectar al servidor'); }
   }
 
   async function fetchData() {
