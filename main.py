@@ -294,6 +294,9 @@ class AssetCreate(BaseModel):
     asignado: Optional[str] = ""
     departamento: Optional[str] = ""
     puesto: Optional[str] = ""
+    subtipo: Optional[str] = ""
+    notas: Optional[str] = ""
+    fechaCompra: Optional[str] = ""
 
 
 class AssetAsignacion(BaseModel):
@@ -705,6 +708,9 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
                 "tipo": data.get("tipo", "") or "",
                 "marca": data.get("marca", "") or "",
                 "modelo": data.get("modelo", "") or "",
+                "subtipo": data.get("subtipo", "") or "",
+                "notas": data.get("notas", "") or "",
+                "fechaCompra": data.get("fechaCompra", "") or "",
                 "asignado": data.get("asignado", "") or "",
                 "departamento": data.get("departamento", "") or "",
                 "puesto": data.get("puesto", "") or "",
@@ -729,6 +735,9 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
         "asignado": (data.asignado or "").strip(),
         "departamento": (data.departamento or "").strip(),
         "puesto": (data.puesto or "").strip(),
+        "subtipo": (data.subtipo or "").strip(),
+        "notas": (data.notas or "").strip(),
+        "fechaCompra": (data.fechaCompra or "").strip(),
         "inventariado": True,
         "actualizadoEn": datetime.utcnow().isoformat(),
     }
@@ -739,6 +748,34 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar asset: {e}")
 
+
+
+@app.patch("/api/assets/{asset_id}")
+def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    firebase_client = _get_firebase_db()
+    if not firebase_client:
+        raise HTTPException(status_code=400, detail="Firebase no configurado")
+    payload = {
+        "numInventario": (data.numInventario or "").strip(),
+        "serie": (data.serie or "").strip(),
+        "tipo": (data.tipo or "").strip(),
+        "subtipo": (data.subtipo or "").strip(),
+        "marca": (data.marca or "").strip(),
+        "modelo": (data.modelo or "").strip(),
+        "asignado": (data.asignado or "").strip(),
+        "departamento": (data.departamento or "").strip(),
+        "puesto": (data.puesto or "").strip(),
+        "notas": (data.notas or "").strip(),
+        "fechaCompra": (data.fechaCompra or "").strip(),
+        "inventariado": True,
+        "actualizadoEn": datetime.utcnow().isoformat(),
+    }
+    try:
+        firebase_client.collection("equipos").document(asset_id).set(payload, merge=True)
+        return {"ok": True, "id": asset_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo editar asset: {e}")
 
 @app.delete("/api/assets/{asset_id}")
 def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
