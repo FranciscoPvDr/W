@@ -30,6 +30,8 @@ from passlib.context import CryptContext
 import httpx
 import uuid
 import os
+import re
+import json
 
 try:
     import firebase_admin
