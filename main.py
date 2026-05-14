@@ -1441,8 +1441,11 @@ def obtener_usb_policy(device_id: str):
     try:
         equipo = db.query(Equipo).filter_by(device_id=device_id).first()
         if not equipo:
-            return {"block_usb_storage": None}
-        return {"block_usb_storage": equipo.usb_storage_policy}
+            return {"block_usb_storage": None, "usb_updated_at": None}
+        return {
+            "block_usb_storage": equipo.usb_storage_policy,
+            "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None
+        }
     finally:
         db.close()
 
