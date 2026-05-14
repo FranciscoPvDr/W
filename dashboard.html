@@ -969,9 +969,7 @@
 
   function usbActionButton(e) {
     if (CURRENT_USERNAME !== 'admin') return '';
-    const shouldBlock = e.usb_storage_policy !== true;
-    const label = shouldBlock ? 'Bloquear USB/MTP' : 'Habilitar USB/MTP';
-    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', ${shouldBlock})">${label}</button>`;
+    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', true)">Bloquear USB/MTP</button> <button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', false)">Habilitar USB/MTP</button>`;
   }
 
   function inventariarUrl(e) {
