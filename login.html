@@ -5,31 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monitor de Equipos · Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
 :root {
-  --bg: #0a0e17;
-  --panel: #0f141f;
-  --panel2: #151b2b;
-  --border: rgba(99,179,237,0.08);
-  --border2: rgba(99,179,237,0.15);
-  --text: #e6edf3;
+  --bg: #060811;
+  --bg-gradient: linear-gradient(135deg, #060811 0%, #0a0e17 50%, #0d1117 100%);
+  --panel: #0d1219;
+  --panel2: #12171f;
+  --panel-glass: rgba(13,18,25,0.7);
+  --border: rgba(99,179,237,0.06);
+  --border2: rgba(99,179,237,0.12);
+  --text: #f0f6fc;
   --text2: #8b949e;
   --text3: #484f58;
   --green: #3fb950;
-  --green-bg: rgba(46,160,67,0.15);
   --green-t: #56d364;
   --red: #f85149;
-  --red-bg: rgba(248,81,73,0.15);
+  --red-bg: rgba(248,81,73,0.12);
   --red-t: #ff7b72;
+  --red-glow: rgba(255,123,114,0.4);
   --blue: #388bfd;
-  --blue-bg: rgba(56,139,253,0.15);
+  --blue-bg: rgba(56,139,253,0.12);
   --blue-t: #79c0ff;
+  --blue-glow: rgba(121,192,255,0.4);
   --cyan: #39c5cf;
   --accent: #388bfd;
   --purple: #a371f7;
-  --shadow-md: 0 8px 24px rgba(0,0,0,.35);
+  --purple-glow: rgba(163,113,247,0.4);
+  --shadow-md: 0 8px 32px rgba(0,0,0,.4);
+  --shadow-xl: 0 32px 80px rgba(0,0,0,.6);
 }
 
 * {
@@ -39,12 +44,22 @@
 }
 
 body {
-  background: var(--bg);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
   color: var(--text);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Inter', 'DM Sans', sans-serif;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow: hidden;
   position: relative;
+}
+
+/* Canvas para partículas */
+#particles-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
 }
 
 body::before {
@@ -52,36 +67,50 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(56,139,253,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56,139,253,0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(56,139,253,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,139,253,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
-  animation: gridPulse 30s ease-in-out infinite;
+  animation: gridPulse 40s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 80%);
 }
 
 @keyframes gridPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 body::after {
   content: '';
   position: fixed;
-  top: -100px;
+  top: -200px;
   left: 50%;
   transform: translateX(-50%);
-  width: 1200px;
-  height: 400px;
-  background: radial-gradient(ellipse closest-side, rgba(56,139,253,0.12), rgba(163,113,247,0.08) 30%, transparent 70%);
+  width: 100vw;
+  height: 600px;
+  background: radial-gradient(
+    ellipse 120% 300px at 50% 0%,
+    rgba(56,139,253,0.18),
+    rgba(163,113,247,0.15) 25%,
+    rgba(57,197,207,0.1) 50%,
+    transparent 70%
+  );
   pointer-events: none;
   z-index: 0;
-  animation: glowPulse 8s ease-in-out infinite;
+  animation: glowPulse 12s ease-in-out infinite;
+  filter: blur(50px);
 }
 
 @keyframes glowPulse {
-  0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
-  50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  0%, 100% {
+    opacity: 0.6;
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.1) translateY(-20px);
+  }
 }
 
 .auth-screen {
@@ -111,41 +140,51 @@ body::after {
 }
 
 .auth-brand-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, rgba(56,139,253,0.2), rgba(163,113,247,0.2));
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, rgba(56,139,253,0.25), rgba(163,113,247,0.25));
   border: 1px solid var(--border2);
-  border-radius: 18px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1.2rem;
-  font-size: 1.8rem;
+  margin: 0 auto 1.4rem;
+  font-size: 2rem;
   color: var(--blue-t);
-  box-shadow: 0 8px 32px rgba(56,139,253,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+  box-shadow: 0 12px 48px rgba(56,139,253,0.3),
+              0 0 60px rgba(163,113,247,0.2),
+              inset 0 1px 0 rgba(255,255,255,0.08);
   position: relative;
   overflow: hidden;
-  animation: iconFloat 3s ease-in-out infinite;
+  animation: iconFloat 4s ease-in-out infinite;
+  transform-style: preserve-3d;
 }
 
 .auth-brand-icon::before {
   content: '';
   position: absolute;
-  inset: -2px;
-  background: linear-gradient(45deg, var(--blue), var(--purple), var(--cyan));
-  border-radius: 18px;
+  inset: -3px;
+  background: linear-gradient(45deg, var(--blue), var(--purple), var(--cyan), var(--blue));
+  background-size: 300% 300%;
+  border-radius: 20px;
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.4s;
   z-index: -1;
+  animation: gradientRotate 8s ease infinite;
+}
+
+@keyframes gradientRotate {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .auth-brand-icon:hover::before {
-  opacity: 0.15;
+  opacity: 0.2;
 }
 
 @keyframes iconFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  0%, 100% { transform: translateY(0) rotateY(0deg); }
+  50% { transform: translateY(-6px) rotateY(5deg); }
 }
 
 .auth-brand h1 {
@@ -334,9 +373,82 @@ button:active {
     padding: 2rem;
   }
 }
+
+/* Orbs flotantes */
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(60px);
+  opacity: 0.4;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(56,139,253,0.5), transparent 70%);
+  top: -250px;
+  left: -250px;
+  animation: float 20s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(163,113,247,0.4), transparent 70%);
+  bottom: -200px;
+  right: -200px;
+  animation: float 25s ease-in-out infinite reverse;
+}
+
+.orb-3 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(57,197,207,0.35), transparent 70%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: float 30s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(50px, -100px) scale(1.1);
+  }
+  50% {
+    transform: translate(-30px, -50px) scale(0.9);
+  }
+  75% {
+    transform: translate(70px, 30px) scale(1.05);
+  }
+}
+
+/* Canvas de partículas */
+#particles-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
 </style>
 </head>
 <body>
+  <canvas id="particles-canvas"></canvas>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  
   <div class="auth-screen">
     <div class="auth-wrap">
       <div class="auth-brand">
@@ -408,6 +520,143 @@ button:active {
         errEl.style.display = 'block';
       }
     }
+  </script>
+
+  <!-- Sistema de Partículas -->
+  <script>
+    (function() {
+      const canvas = document.getElementById('particles-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      let particles = [];
+      let animationFrameId;
+
+      // Configuración
+      const config = {
+        particleCount: 80,
+        maxDistance: 150,
+        baseSpeed: 0.3,
+        colors: [
+          'rgba(56, 139, 253, 0.5)',   // blue
+          'rgba(163, 113, 247, 0.5)',  // purple
+          'rgba(57, 197, 207, 0.5)',   // cyan
+          'rgba(82, 196, 125, 0.5)'    // green
+        ]
+      };
+
+      // Clase Particle
+      class Particle {
+        constructor() {
+          this.reset();
+          this.y = Math.random() * canvas.height;
+          this.opacity = Math.random() * 0.5 + 0.2;
+        }
+
+        reset() {
+          this.x = Math.random() * canvas.width;
+          this.y = Math.random() * canvas.height;
+          this.z = Math.random() * 0.5 + 0.5;
+          this.vx = (Math.random() - 0.5) * config.baseSpeed;
+          this.vy = (Math.random() - 0.5) * config.baseSpeed;
+          this.size = Math.random() * 2 + 1;
+          this.color = config.colors[Math.floor(Math.random() * config.colors.length)];
+          this.opacity = 0;
+          this.targetOpacity = Math.random() * 0.5 + 0.2;
+        }
+
+        update() {
+          // Movimiento con parallax
+          this.x += this.vx * this.z;
+          this.y += this.vy * this.z;
+
+          // Fade in
+          if (this.opacity < this.targetOpacity) {
+            this.opacity += 0.01;
+          }
+
+          // Rebote en bordes
+          if (this.x < 0 || this.x > canvas.width) {
+            this.vx *= -1;
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+          }
+          if (this.y < 0 || this.y > canvas.height) {
+            this.vy *= -1;
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+          }
+        }
+
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size * this.z, 0, Math.PI * 2);
+          ctx.fillStyle = this.color.replace(/[\d.]+\)/, `${this.opacity})`);
+          ctx.fill();
+        }
+      }
+
+      // Inicialización
+      function init() {
+        resizeCanvas();
+        particles = [];
+        for (let i = 0; i < config.particleCount; i++) {
+          particles.push(new Particle());
+        }
+      }
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      // Dibujar conexiones entre partículas cercanas
+      function drawConnections() {
+        for (let i = 0; i < particles.length; i++) {
+          for (let j = i + 1; j < particles.length; j++) {
+            const dx = particles[i].x - particles[j].x;
+            const dy = particles[i].y - particles[j].y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < config.maxDistance) {
+              const opacity = (1 - distance / config.maxDistance) * 0.2;
+              ctx.beginPath();
+              ctx.strokeStyle = `rgba(56, 139, 253, ${opacity})`;
+              ctx.lineWidth = 0.5;
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      // Loop de animación
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Actualizar y dibujar partículas
+        particles.forEach(p => {
+          p.update();
+          p.draw();
+        });
+
+        // Dibujar conexiones
+        drawConnections();
+
+        animationFrameId = requestAnimationFrame(animate);
+      }
+
+      // Event listeners
+      window.addEventListener('resize', resizeCanvas);
+
+      // Iniciar
+      init();
+      animate();
+
+      // Limpieza al salir
+      window.addEventListener('beforeunload', () => {
+        cancelAnimationFrame(animationFrameId);
+      });
+    })();
   </script>
 </body>
 </html>
