@@ -297,7 +297,16 @@ def get_usb_policy(device_id):
 def aplicar_usb_policy(device_id):
     policy = get_usb_policy(device_id)
     errors = []
+    previous_blocked, previous_error = get_usb_storage_blocked()
+    previous_portable_blocked, previous_portable_error = get_portable_devices_blocked()
+    previous_real_blocked = bool(previous_blocked) or bool(previous_portable_blocked)
     if policy is not None:
+        if previous_error:
+            errors.append(f"storage_previo:{previous_error}")
+        if previous_portable_error:
+            errors.append(f"portable_previo:{previous_portable_error}")
+        if previous_real_blocked != bool(policy):
+            errors.append(f"estado_manual_previo:{'bloqueado' if previous_real_blocked else 'habilitado'};politica:{'bloquear' if bool(policy) else 'habilitar'}")
         blocked, error = set_usb_storage_blocked(bool(policy))
         portable_blocked, portable_error = set_portable_devices_blocked(bool(policy))
         wpd_count, wpd_error = set_current_wpd_devices_enabled(not bool(policy))

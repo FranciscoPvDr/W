@@ -958,11 +958,13 @@
     const pending = e.usb_storage_policy !== null && e.usb_storage_policy !== undefined && e.usb_storage_blocked !== e.usb_storage_policy;
     const state = pending ? 'pendiente' : e.usb_storage_blocked === true ? 'bloqueado' : e.usb_storage_blocked === false ? 'permitido' : 'sin dato';
     const badgeClass = pending ? 'badge-fuera' : e.usb_storage_blocked ? 'badge-fuera' : 'badge-dentro';
-    const policy = e.usb_storage_policy === true ? '<div class="accuracy">política: bloquear archivos USB/MTP</div>' : e.usb_storage_policy === false ? '<div class="accuracy">política: habilitar archivos USB/MTP</div>' : '';
+    const actual = e.usb_storage_blocked === true ? '<div class="accuracy">real: bloqueado</div>' : e.usb_storage_blocked === false ? '<div class="accuracy">real: habilitado</div>' : '<div class="accuracy">real: sin dato</div>';
+    const policy = e.usb_storage_policy === true ? '<div class="accuracy">política: bloquear archivos USB/MTP</div>' : e.usb_storage_policy === false ? '<div class="accuracy">política: habilitar archivos USB/MTP</div>' : '<div class="accuracy">política: sin orden, conservar estado real</div>';
     const applied = pending ? '<div class="accuracy">esperando confirmación del sensor</div>' : '';
     const devices = Number.isInteger(e.usb_storage_devices) ? ` · ${e.usb_storage_devices} disp.` : '';
+    const manual = String(e.usb_block_error || '').includes('estado_manual_previo') ? '<div class="accuracy">se detectó cambio manual previo y el sensor aplicó la política</div>' : '';
     const error = e.usb_block_error ? `<div class="accuracy">${e.usb_block_error}</div>` : '';
-    return `<span class="badge ${badgeClass}">${state}${devices}</span>${policy}${applied}${error}`;
+    return `<span class="badge ${badgeClass}">${state}${devices}</span>${actual}${policy}${applied}${manual}${error}`;
   }
 
   function usbActionButton(e) {

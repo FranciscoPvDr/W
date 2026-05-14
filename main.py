@@ -571,6 +571,38 @@ def sync_equipo_to_firestore(equipo: Equipo, serial_number: Optional[str] = ""):
         print(f"Error sincronizando equipo {equipo.device_id} a Firestore: {e}")
 
 
+def sync_equipo_usb_to_supabase(equipo: Equipo):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return
+    serie = (equipo.serial_number or "").strip()
+    if not serie:
+        return
+    try:
+        _supabase_request(
+            "PATCH",
+            "equipos",
+            params={"serie": f"eq.{serie}"},
+            json={
+                "device_id": equipo.device_id,
+                "hostname": equipo.hostname,
+                "ip": equipo.ip,
+                "ssid": equipo.ssid,
+                "dentro": equipo.dentro,
+                "sistema": equipo.sistema,
+                "ultimo_ping": equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None,
+                "usb_storage_blocked": equipo.usb_storage_blocked,
+                "usb_storage_policy": equipo.usb_storage_policy,
+                "usb_storage_devices": equipo.usb_storage_devices,
+                "usb_block_error": equipo.usb_block_error or "",
+                "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
+                "actualizado_en": datetime.utcnow().isoformat(),
+            },
+            prefer="return=minimal",
+        )
+    except Exception as e:
+        print(f"No se pudo sincronizar USB a Supabase para serie {serie}: {e}")
+
+
 def _obtener_asignacion_firestore(equipo: Equipo):
     """
     Obtiene datos de asignación desde Firestore, priorizando match por serie.
@@ -1393,6 +1425,7 @@ async def recibir_ping(data: PingRequest):
 
         db.commit()
         sync_equipo_to_firestore(equipo, data.serial_number)
+        sync_equipo_usb_to_supabase(equipo)
         geo = f"lat:{lat:.4f},lng:{lng:.4f},acc:{accuracy:.0f}m" if lat else "sin geo"
         print(f"Ping [{data.hostname}] {'DENTRO' if data.dentro else 'FUERA'} | {geo}")
         return {"ok": True, "mensaje": "Ping registrado", "geo": {"lat": lat, "lng": lng, "accuracy": accuracy}}
