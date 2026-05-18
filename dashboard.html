@@ -1209,7 +1209,7 @@
   th:nth-child(10), td:nth-child(10) { width: 120px; }
   th:nth-child(11), td:nth-child(11) { width: 90px; }
   th:nth-child(12), td:nth-child(12) { width: 170px; }
-  td:nth-child(12) { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .actions-cell { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 
   tbody tr {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1989,7 +1989,7 @@
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})"><i class="fas fa-map-location-dot"></i> Ver</button>` : '—'}</td>
-        <td>${usbActionButton(e)} ${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</td>
+        <td><div class="actions-cell">${usbActionButton(e)} ${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
       </tr>
     `).join('');
     const selectAll = document.getElementById('select-all');
