@@ -52,6 +52,13 @@
     .card:hover::after{
       opacity:1;
     }
+    header::before,header::after,.nav a::before,.nav a::after,.nav button::before,.nav button::after{
+      pointer-events:none;
+    }
+    header > *,.card > *{
+      position:relative;
+      z-index:1;
+    }
     .card h2{
       font-family:'Space Mono',monospace;
       font-size:.95rem;
@@ -234,7 +241,7 @@
       width:100%;
       border-collapse:collapse;
       table-layout:fixed;
-      min-width:1180px;
+      min-width:1320px;
     }
     th,td{
       padding:14px 12px;
@@ -266,11 +273,17 @@
     tbody tr:hover td{
       border-bottom-color:rgba(56,139,253,.15);
     }
-    td:nth-child(1){width:240px}
-    td:nth-child(2){width:110px}
-    td:nth-child(3){width:220px}
-    td:nth-child(4){width:420px}
-    td:nth-child(5){width:190px}
+    .grid{grid-template-columns:minmax(320px,380px) minmax(0,1fr)}
+    .assets-card{min-width:0}
+    th:nth-child(1),td:nth-child(1){width:220px}
+    th:nth-child(2),td:nth-child(2){width:110px}
+    th:nth-child(3),td:nth-child(3){width:220px}
+    th:nth-child(4),td:nth-child(4){width:480px}
+    th:nth-child(5),td:nth-child(5){width:290px}
+    td:nth-child(5) .btn{
+      margin:0 6px 6px 0;
+      white-space:nowrap;
+    }
     
     /* === Premium Pills === */
     .pill{
@@ -287,7 +300,7 @@
       box-shadow:0 2px 8px rgba(56,139,253,.2),inset 0 1px 0 rgba(255,255,255,.08);
     }
     
-    .inline{display:grid;grid-template-columns:minmax(180px,1.4fr) minmax(120px,1fr) minmax(120px,1fr);gap:6px}
+    .inline{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr);gap:8px;min-width:0}
     .form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
     #msg,#prefillMsg{display:block;margin-top:12px;min-height:18px}@media(max-width:1100px){header{height:auto;padding:12px 1rem;align-items:flex-start;flex-direction:column}.title-block{order:-1}.grid,.toolbar{grid-template-columns:1fr}main{padding:1rem}.page-hero{display:block}.tablewrap{margin-top:8px}}@media(max-width:520px){.nav a,.nav button,.btn{width:100%;text-align:center}.nav{width:100%}.inline{grid-template-columns:1fr}}
   </style>
