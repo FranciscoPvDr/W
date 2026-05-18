@@ -1914,6 +1914,19 @@
 
   function inventariarUrl(e) {
     const params = new URLSearchParams({
+      inventariar: '1',
+      serie: e.serial_number || '',
+      device_id: e.device_id || '',
+      hostname: e.hostname || '',
+      ip: e.ip || '',
+      ssid: e.ssid || ''
+    });
+    return `/equipos?${params.toString()}`;
+  }
+
+  function equipoUrl(e) {
+    const params = new URLSearchParams({
+      focus: '1',
       serie: e.serial_number || '',
       device_id: e.device_id || '',
       hostname: e.hostname || '',
@@ -1979,7 +1992,7 @@
           <div class="hostname">${e.hostname || '—'}</div>
           <div class="device-id">${e.device_id.slice(0,8)}…</div>
         </td>
-        <td><span class="serial">${e.serial_number || '—'}</span></td>
+        <td><a class="serial" href="${equipoUrl(e)}">${e.serial_number || '—'}</a></td>
         <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${CURRENT_USERNAME === 'admin' ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
         <td><span class="ip">${e.ip || '—'}</span></td>
         <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
