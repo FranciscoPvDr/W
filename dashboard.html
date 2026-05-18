@@ -1863,6 +1863,7 @@
   }
 
   function authHeaders() { return { 'Authorization': `Bearer ${TOKEN}` }; }
+  function isSuperAdmin() { return CURRENT_USERNAME === 'admin' || localStorage.getItem('monitor_role') === 'super_admin'; }
 
   function switchTab(tab, btn) {
     currentTab = tab;
@@ -1908,7 +1909,7 @@
   }
 
   function usbActionButton(e) {
-    if (CURRENT_USERNAME !== 'admin') return '';
+    if (!isSuperAdmin()) return '';
     return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', true)">Bloquear USB/MTP</button> <button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', false)">Habilitar USB/MTP</button>`;
   }
 
@@ -1941,7 +1942,7 @@
     const count = document.getElementById('bulk-count');
     if (!bulk || !count) return;
     const total = selectedEquipos.size;
-    bulk.classList.toggle('visible', CURRENT_USERNAME === 'admin' && total > 0);
+    bulk.classList.toggle('visible', isSuperAdmin() && total > 0);
     count.textContent = `${total} equipo${total === 1 ? '' : 's'} seleccionado${total === 1 ? '' : 's'}`;
   }
 
@@ -1987,13 +1988,13 @@
 
     tbody.innerHTML = filtered.map(e => `
       <tr>
-        <td class="check-cell">${CURRENT_USERNAME === 'admin' ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
+        <td class="check-cell">${isSuperAdmin() ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
         <td>
           <div class="hostname">${e.hostname || '—'}</div>
           <div class="device-id">${e.device_id.slice(0,8)}…</div>
         </td>
         <td><a class="serial" href="${equipoUrl(e)}">${e.serial_number || '—'}</a></td>
-        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${CURRENT_USERNAME === 'admin' ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
+        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${isSuperAdmin() ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
         <td><span class="ip">${e.ip || '—'}</span></td>
         <td><span class="ip">${e.wifi_mac || '—'}</span></td>
         <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
@@ -2010,7 +2011,7 @@
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})"><i class="fas fa-map-location-dot"></i> Ver</button>` : '—'}</td>
-        <td><div class="actions-cell">${usbActionButton(e)} ${CURRENT_USERNAME === 'admin' ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
+        <td><div class="actions-cell">${usbActionButton(e)} ${isSuperAdmin() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
       </tr>
     `).join('');
     const selectAll = document.getElementById('select-all');

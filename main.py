@@ -906,6 +906,61 @@ def _empleado_payload_supabase(data: EmpleadoCreate) -> dict:
     }
 
 
+def _usuario_row_to_api(row: dict) -> dict:
+    return {
+        "username": _safe_firestore_text(row.get("username")),
+        "nombre": _safe_firestore_text(row.get("nombre")),
+        "role": _safe_firestore_text(row.get("role") or "ingeniero"),
+    }
+
+
+def _usuario_supabase_por_username(username: str, activo: Optional[bool] = True):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return None
+    params = {"username": f"eq.{username}", "select": "*", "limit": "1"}
+    if activo is not None:
+        params["activo"] = f"eq.{str(activo).lower()}"
+    try:
+        rows = _supabase_request("GET", "usuarios", params=params) or []
+        return rows[0] if rows else None
+    except Exception as e:
+        print(f"No se pudo consultar usuario en Supabase: {e}")
+        return None
+
+
+def _usuario_sqlite_por_username(username: str, activo: Optional[bool] = True):
+    db = Session()
+    try:
+        query = db.query(Usuario).filter_by(username=username)
+        if activo is not None:
+            query = query.filter_by(activo=activo)
+        return query.first()
+    finally:
+        db.close()
+
+
+def _usuario_actual_por_username(username: str):
+    row = _usuario_supabase_por_username(username, activo=True)
+    if row:
+        return {
+            "username": row.get("username"),
+            "nombre": row.get("nombre"),
+            "role": row.get("role") or "ingeniero",
+            "password": row.get("password"),
+            "source": "supabase",
+        }
+    usuario = _usuario_sqlite_por_username(username, activo=True)
+    if not usuario:
+        return None
+    return {
+        "username": usuario.username,
+        "nombre": usuario.nombre,
+        "role": usuario.role or "ingeniero",
+        "password": usuario.password,
+        "source": "sqlite",
+    }
+
+
 # ── Helpers JWT ────────────────────────────────────────────────────────────
 def verificar_password(plain, hashed):
     return pwd_context.verify(plain, hashed)
@@ -923,18 +978,14 @@ def get_usuario_actual(token: str = Depends(oauth2_scheme)):
             raise HTTPException(status_code=401, detail="Token invalido")
     except JWTError:
         raise HTTPException(status_code=401, detail="Token invalido o expirado")
-    db = Session()
-    try:
-        usuario = db.query(Usuario).filter_by(username=username, activo=True).first()
-        if not usuario:
-            raise HTTPException(status_code=401, detail="Usuario no encontrado")
-        return {"username": usuario.username, "nombre": usuario.nombre}
-    finally:
-        db.close()
+    usuario = _usuario_actual_por_username(username)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+    return {"username": usuario["username"], "nombre": usuario["nombre"], "role": usuario.get("role") or "ingeniero"}
 
 
 def exigir_super_admin(usuario):
-    if usuario["username"] != "admin":
+    if usuario.get("username") != "admin" and usuario.get("role") != "super_admin":
         raise HTTPException(status_code=403, detail="Solo el super admin puede realizar esta acción")
 
 
@@ -971,15 +1022,12 @@ async def geolocate(wifi_networks: list):
 
 @app.post("/api/login")
 def login(form: OAuth2PasswordRequestForm = Depends()):
-    db = Session()
-    try:
-        usuario = db.query(Usuario).filter_by(username=form.username, activo=True).first()
-        if not usuario or not verificar_password(form.password, usuario.password):
-            raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
-        token = crear_token({"sub": usuario.username, "nombre": usuario.nombre, "role": usuario.role or "ingeniero"})
-        return {"access_token": token, "token_type": "bearer", "nombre": usuario.nombre, "username": usuario.username, "role": usuario.role or "ingeniero"}
-    finally:
-        db.close()
+    usuario = _usuario_actual_por_username(form.username)
+    if not usuario or not verificar_password(form.password, usuario["password"]):
+        raise HTTPException(status_code=401, detail="Usuario o contrasena incorrectos")
+    role = usuario.get("role") or "ingeniero"
+    token = crear_token({"sub": usuario["username"], "nombre": usuario["nombre"], "role": role})
+    return {"access_token": token, "token_type": "bearer", "nombre": usuario["nombre"], "username": usuario["username"], "role": role}
 
 
 @app.get("/api/me")
@@ -990,6 +1038,19 @@ def me(usuario=Depends(get_usuario_actual)):
 @app.post("/api/usuarios")
 def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
+    role = data.role if data.role in ["guardia", "ingeniero", "super_admin"] else "ingeniero"
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        if _usuario_supabase_por_username(data.username, activo=None):
+            raise HTTPException(status_code=400, detail="El usuario ya existe")
+        _supabase_request("POST", "usuarios", json={
+            "id": str(uuid.uuid4()),
+            "username": data.username,
+            "password": pwd_context.hash(data.password),
+            "nombre": data.nombre,
+            "role": role,
+            "activo": True
+        })
+        return {"ok": True, "mensaje": f"Usuario {data.username} creado en Supabase"}
     db = Session()
     try:
         existe = db.query(Usuario).filter_by(username=data.username).first()
@@ -1000,7 +1061,7 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
             username = data.username,
             password = pwd_context.hash(data.password),
             nombre   = data.nombre,
-            role     = data.role if data.role in ["guardia", "ingeniero", "super_admin"] else "ingeniero",
+            role     = role,
             activo   = True
         )
         db.add(nuevo)
@@ -1012,6 +1073,12 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
 
 @app.get("/api/usuarios")
 def listar_usuarios(usuario=Depends(get_usuario_actual)):
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        try:
+            rows = _supabase_request("GET", "usuarios", params={"select": "username,nombre,role", "activo": "eq.true", "order": "username.asc"}) or []
+            return {"usuarios": [_usuario_row_to_api(row) for row in rows]}
+        except Exception as e:
+            print(f"No se pudieron listar usuarios desde Supabase: {e}")
     db = Session()
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
@@ -1025,6 +1092,9 @@ def cambiar_rol_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(
     exigir_super_admin(usuario)
     if data.role not in ["guardia", "ingeniero", "super_admin"]:
         raise HTTPException(status_code=400, detail="Rol inválido")
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and _usuario_supabase_por_username(username, activo=True):
+        _supabase_request("PATCH", "usuarios", params={"username": f"eq.{username}"}, json={"role": data.role})
+        return {"ok": True}
     db = Session()
     try:
         u = db.query(Usuario).filter_by(username=username, activo=True).first()
@@ -1042,6 +1112,9 @@ def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
     if username == "admin":
         raise HTTPException(status_code=400, detail="No se puede eliminar el admin")
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and _usuario_supabase_por_username(username, activo=None):
+        _supabase_request("PATCH", "usuarios", params={"username": f"eq.{username}"}, json={"activo": False})
+        return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
     db = Session()
     try:
         u = db.query(Usuario).filter_by(username=username).first()
@@ -1626,7 +1699,7 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     Elimina un equipo de la BD (y su historial de pings).
     Útil para limpiar duplicados o equipos dados de baja.
     """
-    if usuario["username"] != "admin":
+    if usuario.get("username") != "admin" and usuario.get("role") != "super_admin":
         raise HTTPException(status_code=403, detail="Solo el super admin puede eliminar equipos")
 
     db = Session()
