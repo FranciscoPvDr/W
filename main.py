@@ -51,6 +51,7 @@ OFFICE_LAT = float(os.getenv("OFFICE_LAT", "0") or 0)
 OFFICE_LNG = float(os.getenv("OFFICE_LNG", "0") or 0)
 MAX_GEO_ACCURACY_M = float(os.getenv("MAX_GEO_ACCURACY_M", "250") or 250)
 OFFLINE_ALERT_MINUTES = int(os.getenv("OFFLINE_ALERT_MINUTES", "10") or 10)
+CREATE_DEFAULT_LOCAL_ADMIN = os.getenv("CREATE_DEFAULT_LOCAL_ADMIN", "true").strip().lower() in ["1", "true", "yes", "si"]
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
@@ -263,6 +264,8 @@ _ensure_sqlite_columns()
 
 # ── Crear admin por defecto ────────────────────────────────────────────────
 def crear_admin():
+    if not CREATE_DEFAULT_LOCAL_ADMIN:
+        return
     db = Session()
     try:
         existe = db.query(Usuario).filter_by(username="admin").first()
@@ -1083,6 +1086,34 @@ def listar_usuarios(usuario=Depends(get_usuario_actual)):
     try:
         usuarios = db.query(Usuario).filter_by(activo=True).all()
         return {"usuarios": [{"username": u.username, "nombre": u.nombre, "role": u.role or "ingeniero"} for u in usuarios]}
+    finally:
+        db.close()
+
+
+@app.post("/api/usuarios/migrar-locales")
+def migrar_usuarios_locales(usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(status_code=400, detail="Supabase no configurado")
+    db = Session()
+    migrados = []
+    omitidos = []
+    try:
+        locales = db.query(Usuario).filter_by(activo=True).all()
+        for local in locales:
+            if _usuario_supabase_por_username(local.username, activo=None):
+                omitidos.append(local.username)
+                continue
+            _supabase_request("POST", "usuarios", json={
+                "id": local.id or str(uuid.uuid4()),
+                "username": local.username,
+                "password": local.password,
+                "nombre": local.nombre,
+                "role": local.role or "ingeniero",
+                "activo": True
+            })
+            migrados.append(local.username)
+        return {"ok": True, "migrados": migrados, "omitidos": omitidos}
     finally:
         db.close()
 
