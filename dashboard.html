@@ -1214,31 +1214,15 @@
   .actions-cell { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 
   tbody tr {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-  }
-
-  tbody tr::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: linear-gradient(180deg, var(--blue), var(--purple), var(--cyan));
-    opacity: 0;
-    transition: opacity 0.3s, width 0.3s;
-    box-shadow: 0 0 20px currentColor;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   tbody tr:hover {
     background: rgba(56,139,253,0.08) !important;
-    transform: scale(1.005);
   }
 
-  tbody tr:hover::before {
-    opacity: 1;
-    width: 5px;
+  tbody tr:hover td:first-child {
+    box-shadow: inset 4px 0 0 var(--blue);
   }
 
   .hostname {
