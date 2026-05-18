@@ -1125,6 +1125,14 @@ def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_
     return {"ok": True, "id": empleado_id}
 
 
+@app.delete("/api/empleados/{empleado_id}")
+def eliminar_empleado(empleado_id: str, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    _supabase_request("DELETE", "empleados", params={"num_empleado": f"eq.{empleado_id}"}, prefer="return=minimal")
+    _cache_clear("empleados")
+    return {"ok": True, "id": empleado_id}
+
+
 @app.post("/api/empleados/bulk")
 def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
