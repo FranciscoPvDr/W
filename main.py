@@ -171,6 +171,7 @@ class PingLog(Base):
     serial_number = Column(String, index=True, nullable=True)
     hostname  = Column(String)
     ip        = Column(String)
+    wifi_mac  = Column(String, nullable=True)
     ssid      = Column(String)
     dentro    = Column(Boolean)
     sistema   = Column(String)
@@ -189,6 +190,7 @@ class Equipo(Base):
     serial_number = Column(String, index=True, nullable=True)
     hostname    = Column(String)
     ip          = Column(String)
+    wifi_mac    = Column(String, nullable=True)
     ssid        = Column(String)
     dentro      = Column(Boolean, default=True)
     sistema     = Column(String)
@@ -225,6 +227,8 @@ def _ensure_sqlite_columns():
         equipos_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(equipos)"))}
         if "serial_number" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN serial_number TEXT"))
+        if "wifi_mac" not in equipos_cols:
+            conn.execute(text("ALTER TABLE equipos ADD COLUMN wifi_mac TEXT"))
         if "usb_storage_blocked" not in equipos_cols:
             conn.execute(text("ALTER TABLE equipos ADD COLUMN usb_storage_blocked BOOLEAN"))
         if "usb_storage_policy" not in equipos_cols:
@@ -239,6 +243,8 @@ def _ensure_sqlite_columns():
         ping_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(ping_logs)"))}
         if "serial_number" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN serial_number TEXT"))
+        if "wifi_mac" not in ping_cols:
+            conn.execute(text("ALTER TABLE ping_logs ADD COLUMN wifi_mac TEXT"))
         if "usb_storage_blocked" not in ping_cols:
             conn.execute(text("ALTER TABLE ping_logs ADD COLUMN usb_storage_blocked BOOLEAN"))
         if "usb_storage_devices" not in ping_cols:
@@ -289,6 +295,7 @@ class PingRequest(BaseModel):
     serial_number: Optional[str] = ""
     hostname:      str
     ip:            str
+    wifi_mac:      Optional[str] = ""
     ssid:          Optional[str] = ""
     dentro:        bool
     sistema:       Optional[str] = ""
@@ -1363,6 +1370,7 @@ async def recibir_ping(data: PingRequest):
             serial_number = (data.serial_number or "").strip(),
             hostname  = data.hostname,
             ip        = data.ip,
+            wifi_mac  = data.wifi_mac or "",
             ssid      = data.ssid or "",
             dentro    = data.dentro,
             sistema   = data.sistema or "",
@@ -1395,6 +1403,7 @@ async def recibir_ping(data: PingRequest):
                 equipo.serial_number = serial_limpio
             equipo.hostname    = data.hostname
             equipo.ip          = data.ip
+            equipo.wifi_mac    = data.wifi_mac or ""
             equipo.ssid        = data.ssid or ""
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
@@ -1417,6 +1426,7 @@ async def recibir_ping(data: PingRequest):
                 serial_number = serial_limpio,
                 hostname    = data.hostname,
                 ip          = data.ip,
+                wifi_mac    = data.wifi_mac or "",
                 ssid        = data.ssid or "",
                 dentro      = data.dentro,
                 sistema     = data.sistema or "",
@@ -1480,6 +1490,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "inventariado": asignacion.get("inventariado", False),
                 "hostname":    e.hostname,
                 "ip":          e.ip,
+                "wifi_mac":    e.wifi_mac,
                 "ssid":        e.ssid,
                 "dentro":      e.dentro,
                 "online":      online,
@@ -1517,6 +1528,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                     "inventariado": True,
                     "hostname": _safe_firestore_text(asset.get("hostname")),
                     "ip": _safe_firestore_text(asset.get("ip")),
+                    "wifi_mac": _safe_firestore_text(asset.get("wifi_mac")),
                     "ssid": _safe_firestore_text(asset.get("ssid")),
                     "dentro": bool(asset.get("dentro", True)),
                     "online": False,

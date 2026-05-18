@@ -1768,12 +1768,12 @@
             <tr>
               <th class="check-cell"><input id="select-all" class="head-check" type="checkbox" onchange="toggleSeleccionVisible(this.checked)"></th>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
-              <th>IP</th><th>Red / SSID</th><th>Estado</th>
+              <th>IP</th><th>MAC WiFi</th><th>Red / SSID</th><th>Estado</th>
               <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
-            <tr><td colspan="12"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
+            <tr><td colspan="13"><div class="empty-state"><div class="spinner"></div><p>Cargando equipos...</p></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -1980,7 +1980,7 @@
     if (currentFilter === 'fuera') filtered = equipos.filter(e => !e.dentro);
 
     if (!filtered.length) {
-      tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><p>Sin equipos en esta categoría</p></div></td></tr>`;
       updateBulkActions();
       return;
     }
@@ -1995,6 +1995,7 @@
         <td><a class="serial" href="${equipoUrl(e)}">${e.serial_number || '—'}</a></td>
         <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${CURRENT_USERNAME === 'admin' ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
         <td><span class="ip">${e.ip || '—'}</span></td>
+        <td><span class="ip">${e.wifi_mac || '—'}</span></td>
         <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
         <td>
           <div class="badges-col">
@@ -2066,6 +2067,7 @@
         content: `<div style="font-family:'Space Mono',monospace;font-size:12px;padding:6px;line-height:1.8;color:#0d1117">
           <strong>${e.hostname}</strong><br>
           IP: ${e.ip}<br>
+          MAC WiFi: ${e.wifi_mac || '—'}<br>
           Red: ${e.ssid || '—'}<br>
           ${e.online ? 'Online' : 'Offline'} / ${e.dentro ? 'Dentro' : 'Fuera'}<br>
           ±${Math.round(e.accuracy || 0)}m · ${formatTs(e.ultimo_ping)}
