@@ -767,7 +767,24 @@
     align-items: center;
     box-shadow: 0 4px 16px rgba(248,81,73,0.15);
     animation: slideDown 0.4s ease;
-  }\n\n  @keyframes slideDown {\n    from { opacity: 0; transform: translateY(-10px); }\n    to { opacity: 1; transform: translateY(0); }\n  }\n\n  .alert-banner.visible { display: flex; }\n\n  .alert-banner i {\n    font-size: 1.1rem;\n    animation: pulse 2s ease-in-out infinite;\n  }\n\n  .alert-banner strong {\n    color: var(--red);\n    font-weight: 700;\n  }
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .alert-banner.visible { display: flex; }
+
+  .alert-banner i {
+    font-size: 1.1rem;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .alert-banner strong {
+    color: var(--red);
+    font-weight: 700;
+  }
 
   /* ── METRICS ── */
   .metrics {
@@ -792,6 +809,7 @@
     box-shadow: var(--shadow-sm),
                 inset 0 1px 0 0 rgba(255,255,255,0.03);
     transform-style: preserve-3d;
+    cursor: pointer;
   }
 
   .metric::before {
@@ -923,6 +941,9 @@
   .m-offline .metric-bar  { background: var(--text3); }
   .m-fuera  .metric-value { color: var(--red-t); }
   .m-fuera  .metric-bar   { background: var(--red); }
+  .metric.active { border-color: var(--blue-t); box-shadow: var(--shadow-lg), 0 0 0 1px rgba(56,139,253,0.2), inset 0 1px 0 0 rgba(255,255,255,0.05); }
+  .metric.m-online.active { border-color: var(--green-t); }
+  .metric.m-fuera.active { border-color: var(--red-t); }
 
   /* ── TOOLBAR ── */
   .toolbar {
@@ -1694,22 +1715,22 @@
     <div id="alert-banner" class="alert-banner"></div>
 
     <div class="metrics">
-      <div class="metric m-total">
+      <div class="metric m-total active" data-filter="todos" onclick="setFilter('todos')">
         <div class="metric-label"><i class="fas fa-server"></i> Total equipos</div>
         <div class="metric-value" id="m-total">—</div>
         <div class="metric-bar"></div>
       </div>
-      <div class="metric m-online">
+      <div class="metric m-online" data-filter="online" onclick="setFilter('online')">
         <div class="metric-label"><i class="fas fa-circle-check"></i> En línea</div>
         <div class="metric-value" id="m-online">—</div>
         <div class="metric-bar"></div>
       </div>
-      <div class="metric m-offline">
+      <div class="metric m-offline" data-filter="sin_senal" onclick="setFilter('sin_senal')">
         <div class="metric-label"><i class="fas fa-circle-xmark"></i> Sin señal</div>
         <div class="metric-value" id="m-offline">—</div>
         <div class="metric-bar"></div>
       </div>
-      <div class="metric m-fuera">
+      <div class="metric m-fuera" data-filter="fuera" onclick="setFilter('fuera')">
         <div class="metric-label"><i class="fas fa-triangle-exclamation"></i> Fuera de red</div>
         <div class="metric-value" id="m-fuera">—</div>
         <div class="metric-bar"></div>
@@ -1854,8 +1875,8 @@
 
   function setFilter(f, btn) {
     currentFilter = f;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${f}'`)));
+    document.querySelectorAll('.metric').forEach(m => m.classList.toggle('active', m.dataset.filter === f));
     renderTabla(allEquipos);
   }
 
@@ -2121,17 +2142,22 @@
 
       const total   = allEquipos.length;
       const online  = allEquipos.filter(e => e.online).length;
-      const offline = total - online;
+      const sinSenal = allEquipos.filter(e => {
+        if (e.online) return false;
+        if (!e.ultimo_ping) return true;
+        const last = new Date(e.ultimo_ping + (e.ultimo_ping.endsWith('Z') ? '' : 'Z'));
+        return (Date.now() - last.getTime()) / 60000 >= offlineAlertMinutes;
+      }).length;
       const fuera   = allEquipos.filter(e => !e.dentro).length;
 
       document.getElementById('m-total').textContent   = total;
       document.getElementById('m-online').textContent  = online;
-      document.getElementById('m-offline').textContent = offline;
+      document.getElementById('m-offline').textContent = sinSenal;
       document.getElementById('m-fuera').textContent   = fuera;
 
       const pct = v => total ? (v / total * 100) + '%' : '0%';
       document.querySelector('.m-online .metric-bar').style.width  = pct(online);
-      document.querySelector('.m-offline .metric-bar').style.width = pct(offline);
+      document.querySelector('.m-offline .metric-bar').style.width = pct(sinSenal);
       document.querySelector('.m-fuera .metric-bar').style.width   = pct(fuera);
 
       const alertBanner   = document.getElementById('alert-banner');
