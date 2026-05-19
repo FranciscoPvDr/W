@@ -1454,6 +1454,38 @@ def cambiar_password(data: CambiarPassword, usuario=Depends(get_usuario_actual))
     finally:
         db.close()
 
+class ResetPasswordAdmin(BaseModel):
+    password_nueva: str
+
+@app.post("/api/usuarios/{username}/reset-password")
+def reset_password_admin(username: str, data: ResetPasswordAdmin, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
+    nuevo_hash = pwd_context.hash(data.password_nueva)
+
+    # Intentar en Supabase primero
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        row = _usuario_supabase_por_username(username, activo=True)
+        if row:
+            _supabase_request(
+                "PATCH", "usuarios",
+                params={"username": f"eq.{username}"},
+                json={"password": nuevo_hash},
+                prefer="return=minimal"
+            )
+            return {"ok": True, "mensaje": f"Contraseña de {username} actualizada"}
+
+    # Fallback SQLite
+    db = Session()
+    try:
+        u = db.query(Usuario).filter_by(username=username, activo=True).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        u.password = nuevo_hash
+        db.commit()
+        return {"ok": True, "mensaje": f"Contraseña de {username} actualizada"}
+    finally:
+        db.close()
+
 
 # ── Endpoint del sensor (sin autenticacion) ────────────────────────────────
 
