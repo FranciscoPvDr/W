@@ -27,6 +27,24 @@ function norm(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u03
 
 function setMsg(text) { msg.textContent = text || ''; }
 
+function setWizardMode() {
+  const title = document.getElementById('wizardTitle');
+  const subtitle = document.getElementById('wizardSubtitle');
+  const logo = document.getElementById('wizardLogo');
+  if (!title || !subtitle) return;
+  if (editingAsset) {
+    if (logo) logo.textContent = 'Monitor · Editar asset';
+    title.textContent = 'Editar asset';
+    subtitle.textContent = `Modificando ${editingAsset.numInventario || editingAsset.id || 'asset'} desde el wizard guiado.`;
+    btnSave.textContent = 'Guardar cambios';
+  } else {
+    if (logo) logo.textContent = 'Monitor · Nuevo asset';
+    title.textContent = 'Alta de asset';
+    subtitle.textContent = 'Captura inventario, complementos y asignación en 4 pasos guiados.';
+    btnSave.textContent = 'Guardar';
+  }
+}
+
 function renderProgress() {
   const labels = ['Tipo', 'Datos generales', 'Complementos', 'Asignación'];
   progress.innerHTML = labels.map((label, i) => {
@@ -256,7 +274,10 @@ async function cargarEdicion() {
   const edit = new URLSearchParams(location.search).get('edit');
   if (!edit) return;
   const res = await fetch(`${SERVER}/api/assets/by-inventario/${encodeURIComponent(edit)}`, { headers: headers() });
-  if (!res.ok) return;
+  if (!res.ok) {
+    setMsg(`No se pudo cargar el asset ${edit} para edición.`);
+    return;
+  }
   const data = await res.json();
   editingAsset = data.asset;
   selectedTipo = editingAsset.tipo || 'Laptop';
@@ -273,6 +294,9 @@ async function cargarEdicion() {
   setValue('puesto', editingAsset.puesto);
   setValue('empleadoSearch', editingAsset.asignado);
   renderComplementos();
+  step = 2;
+  setWizardMode();
+  mostrarStep();
 }
 
 async function cargarDatos() {
@@ -297,5 +321,6 @@ document.addEventListener('click', (e) => {
 
 renderTipos();
 renderComplementos();
+setWizardMode();
 mostrarStep();
 cargarDatos();
