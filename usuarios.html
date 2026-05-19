@@ -48,7 +48,6 @@ tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
     <a href="/equipos">Equipos</a>
     <a href="/empleados">Empleados</a>
     <a class="active" href="/usuarios">Usuarios</a>
-    <a href="/reset-password">Contraseña</a>
     <button onclick="logout()"><i class="fas fa-right-from-bracket"></i> Salir</button>
   </nav>
 </header>
@@ -73,11 +72,7 @@ tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
       <label>Contraseña temporal</label>
       <input id="password" type="password" placeholder="contraseña temporal">
       <label>Rol</label>
-      <select id="role">
-        <option value="guardia">Guardia</option>
-        <option value="ingeniero">Ingeniero</option>
-        <option value="super_admin">Super Admin</option>
-      </select>
+      <select id="role"></select>
       <br><br>
       <button class="btn primary" onclick="crearUsuario()"><i class="fas fa-user-plus"></i> Crear usuario</button>
       <p class="muted" id="msg"></p>
@@ -119,15 +114,13 @@ tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
     <input id="editNombre" placeholder="Nombre completo">
 
     <label>Rol</label>
-    <select id="editRole">
-      <option value="guardia">Guardia</option>
-      <option value="ingeniero">Ingeniero</option>
-      <option value="super_admin">Super Admin</option>
-    </select>
+    <select id="editRole"></select>
 
+    <div id="editPasswordBlock">
     <label>Nueva contraseña <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
     <input id="editPassword" type="password" placeholder="Dejar vacío para no cambiar">
-    <p class="hint-pass">Opcional. Como super admin puedes asignar una nueva contraseña (mín. 6 caracteres).</p>
+    <p class="hint-pass">Solo super admin puede cambiar contraseñas (mín. 6 caracteres).</p>
+    </div>
 
     <span id="editMsg"></span>
 
@@ -141,20 +134,52 @@ tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
 <script>
 const SERVER = location.origin;
 const TOKEN  = localStorage.getItem('monitor_token');
-const ROLE   = localStorage.getItem('monitor_role');
+const ROLE   = localStorage.getItem('monitor_role') || '';
+const MY_USER = localStorage.getItem('monitor_username') || '';
+const IS_SUPER = ROLE === 'super_admin' || MY_USER === 'admin';
+const IS_GESTOR = IS_SUPER || ROLE === 'admin';
 
 if (!TOKEN) location.href = '/login';
-if (ROLE !== 'super_admin') location.href = '/dashboard';
+if (!IS_GESTOR) location.href = '/dashboard';
 
 function headers()     { return { Authorization: `Bearer ${TOKEN}` } }
 function jsonHeaders() { return { ...headers(), 'Content-Type': 'application/json' } }
 function logout()      { localStorage.clear(); location.href = '/login' }
 
+function llenarSelectRoles(sel) {
+  const opts = [
+    { v: 'guardia', l: 'Guardia' },
+    { v: 'ingeniero', l: 'Ingeniero' },
+    { v: 'admin', l: 'Admin' },
+  ];
+  if (IS_SUPER) opts.push({ v: 'super_admin', l: 'Super Admin' });
+  sel.innerHTML = opts.map(o => `<option value="${o.v}">${o.l}</option>`).join('');
+}
+
+function puedeEliminarUsuario(u) {
+  if (u.username === 'admin') return false;
+  if (!IS_SUPER && (u.role === 'super_admin')) return false;
+  return true;
+}
+
 function roleLabel(r) {
-  return r === 'super_admin' ? 'Super Admin' : r === 'guardia' ? 'Guardia' : 'Ingeniero';
+  if (r === 'super_admin') return 'Super Admin';
+  if (r === 'admin') return 'Admin';
+  if (r === 'guardia') return 'Guardia';
+  return 'Ingeniero';
 }
 function roleBadgeClass(r) {
-  return r === 'super_admin' ? 'badge admin' : r === 'guardia' ? 'badge guardia' : 'badge';
+  if (r === 'super_admin') return 'badge admin';
+  if (r === 'admin') return 'badge admin';
+  if (r === 'guardia') return 'badge guardia';
+  return 'badge';
+}
+
+llenarSelectRoles(role);
+llenarSelectRoles(editRole);
+if (!IS_SUPER) {
+  const blk = document.getElementById('editPasswordBlock');
+  if (blk) blk.style.display = 'none';
 }
 
 async function cargar() {
@@ -171,9 +196,9 @@ async function cargar() {
           <button class="btn edit-btn" onclick="abrirModal('${u.username}','${(u.nombre||'').replace(/'/g,"\\'")}','${u.role}')">
             <i class="fas fa-pen"></i> Editar
           </button>
-          <button class="btn danger" onclick="eliminarUsuario('${u.username}')">
+          ${puedeEliminarUsuario(u) ? `<button class="btn danger" onclick="eliminarUsuario('${u.username}')">
             <i class="fas fa-trash"></i> Eliminar
-          </button>
+          </button>` : ''}
         </div>
       </td>
     </tr>
@@ -195,23 +220,24 @@ async function crearUsuario() {
 }
 
 // ── Modal ──────────────────────────────────────────────────────────────────
-function abrirModal(uname, nombre, role) {
-  const myUser = localStorage.getItem('monitor_username') || '';
-  const otroSuperAdmin = role === 'super_admin' && uname !== myUser;
+function abrirModal(uname, nombre, roleVal) {
+  const otroSuperAdmin = roleVal === 'super_admin' && uname !== MY_USER;
 
   editUsername.value  = uname;
   editNombre.value    = nombre;
-  editRole.value      = role;
+  editRole.value      = roleVal;
   editPassword.value  = '';
-  editPassword.disabled = otroSuperAdmin;
+  if (IS_SUPER) {
+    editPassword.disabled = otroSuperAdmin;
+    const hint = document.querySelector('.hint-pass');
+    if (hint) {
+      hint.textContent = otroSuperAdmin
+        ? 'No puedes cambiar la contraseña de otro super admin.'
+        : 'Nueva contraseña (mín. 6 caracteres).';
+    }
+  }
   editMsg.textContent = '';
   editSubtitle.textContent = `Editando: @${uname}`;
-  const hint = document.querySelector('.hint-pass');
-  if (hint) {
-    hint.textContent = otroSuperAdmin
-      ? 'No puedes cambiar la contraseña de otro super admin.'
-      : 'Como super admin puedes asignar una nueva contraseña (mín. 6 caracteres).';
-  }
   modalOverlay.classList.add('open');
 }
 
@@ -246,8 +272,8 @@ async function guardarEdicion() {
     return;
   }
 
-  // 2. Cambiar contraseña (super admin: propia o roles inferiores)
-  if (newPass) {
+  // 2. Cambiar contraseña (solo super admin)
+  if (newPass && IS_SUPER) {
     if (newPass.length < 6) {
       editMsg.style.color = 'var(--red-t)';
       editMsg.textContent = '✗ La contraseña debe tener al menos 6 caracteres';
@@ -293,4 +319,5 @@ async function eliminarUsuario(user) {
 
 cargar();
 </script>
+<script src="/auth-session.js"></script>
 </body></html>

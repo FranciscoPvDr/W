@@ -481,7 +481,13 @@ button:active {
     const SERVER = location.origin;
     
     if (localStorage.getItem('monitor_token')) {
-      location.href = '/dashboard';
+      const r = localStorage.getItem('monitor_role');
+      location.href = r === 'guardia' ? '/guardia' : '/dashboard';
+    }
+    if (new URLSearchParams(location.search).get('timeout')) {
+      const errEl = document.getElementById('err');
+      errEl.textContent = 'Sesión cerrada por inactividad (5 minutos). Vuelve a iniciar sesión.';
+      errEl.style.display = 'block';
     }
 
     pass.addEventListener('keydown', e => {

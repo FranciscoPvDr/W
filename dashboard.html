@@ -1699,8 +1699,7 @@
       <a class="tab-btn active" href="/dashboard">Dashboard</a>
       <a class="tab-btn" href="/equipos">Equipos</a>
       <a class="tab-btn" href="/empleados">Empleados</a>
-      <a class="tab-btn" href="/usuarios">Usuarios</a>
-      <a class="tab-btn" href="/reset-password">Contraseña</a>
+      <a class="tab-btn" href="/usuarios" id="nav-usuarios" style="display:none">Usuarios</a>
     </div>
     <div class="header-right">
       <div class="user-chip">
@@ -1813,6 +1812,8 @@
     document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
+    const navUsuarios = document.getElementById('nav-usuarios');
+    if (navUsuarios && isGestor()) navUsuarios.style.display = '';
     fetchData();
     refreshInterval = setInterval(fetchData, 30000);
   }
@@ -1838,12 +1839,14 @@
       localStorage.setItem('monitor_token', TOKEN);
       localStorage.setItem('monitor_username', CURRENT_USERNAME);
       localStorage.setItem('monitor_nombre', data.nombre || user);
-      localStorage.setItem('monitor_role', data.role || (CURRENT_USERNAME === 'admin' ? 'super_admin' : 'ingeniero'));
+      localStorage.setItem('monitor_role', data.role || 'ingeniero');
       const nombre = data.nombre || user;
       document.getElementById('user-display').textContent = nombre;
       document.getElementById('user-avatar').textContent = nombre.charAt(0).toUpperCase();
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard-screen').style.display = 'block';
+      const navUsuarios = document.getElementById('nav-usuarios');
+      if (navUsuarios && isGestor()) navUsuarios.style.display = '';
       fetchData();
       refreshInterval = setInterval(fetchData, 30000);
     } catch {
@@ -1863,7 +1866,16 @@
   }
 
   function authHeaders() { return { 'Authorization': `Bearer ${TOKEN}` }; }
-  function isSuperAdmin() { return CURRENT_USERNAME === 'admin' || localStorage.getItem('monitor_role') === 'super_admin'; }
+  function isGestor() {
+    const r = localStorage.getItem('monitor_role');
+    const u = CURRENT_USERNAME || localStorage.getItem('monitor_username') || '';
+    return u === 'admin' || r === 'super_admin' || r === 'admin';
+  }
+  function isSuperAdmin() {
+    const r = localStorage.getItem('monitor_role');
+    const u = CURRENT_USERNAME || localStorage.getItem('monitor_username') || '';
+    return u === 'admin' || r === 'super_admin';
+  }
 
   function switchTab(tab, btn) {
     currentTab = tab;
@@ -1909,7 +1921,7 @@
   }
 
   function usbActionButton(e) {
-    if (!isSuperAdmin()) return '';
+    if (!isGestor()) return '';
     return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', true)">Bloquear USB/MTP</button> <button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', false)">Habilitar USB/MTP</button>`;
   }
 
@@ -1942,7 +1954,7 @@
     const count = document.getElementById('bulk-count');
     if (!bulk || !count) return;
     const total = selectedEquipos.size;
-    bulk.classList.toggle('visible', isSuperAdmin() && total > 0);
+    bulk.classList.toggle('visible', isGestor() && total > 0);
     count.textContent = `${total} equipo${total === 1 ? '' : 's'} seleccionado${total === 1 ? '' : 's'}`;
   }
 
@@ -1988,13 +2000,13 @@
 
     tbody.innerHTML = filtered.map(e => `
       <tr>
-        <td class="check-cell">${isSuperAdmin() ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
+        <td class="check-cell">${isGestor() ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
         <td>
           <div class="hostname">${e.hostname || '—'}</div>
           <div class="device-id">${e.device_id.slice(0,8)}…</div>
         </td>
         <td><a class="serial" href="${equipoUrl(e)}">${e.serial_number || '—'}</a></td>
-        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${isSuperAdmin() ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
+        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${isGestor() ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
         <td><span class="ip">${e.ip || '—'}</span></td>
         <td><span class="ip">${e.wifi_mac || '—'}</span></td>
         <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
@@ -2011,7 +2023,7 @@
         </td>
         <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})"><i class="fas fa-map-location-dot"></i> Ver</button>` : '—'}</td>
-        <td><div class="actions-cell">${usbActionButton(e)} ${isSuperAdmin() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
+        <td><div class="actions-cell">${usbActionButton(e)} ${isGestor() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
       </tr>
     `).join('');
     const selectAll = document.getElementById('select-all');
@@ -2352,5 +2364,6 @@
     });
   })();
 </script>
+<script src="/auth-session.js"></script>
 </body>
 </html>

@@ -18,7 +18,7 @@ Usuario admin por defecto:
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, String, Boolean, DateTime, Float, Integer, text
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -987,13 +987,51 @@ def get_usuario_actual(token: str = Depends(oauth2_scheme)):
     return {"username": usuario["username"], "nombre": usuario["nombre"], "role": usuario.get("role") or "ingeniero"}
 
 
+ROLES_VALIDOS = frozenset({"guardia", "ingeniero", "admin", "super_admin"})
+ROLES_ASIGNABLES_POR_ADMIN = frozenset({"guardia", "ingeniero", "admin"})
+
+
+def es_super_admin(usuario: dict) -> bool:
+    return usuario.get("role") == "super_admin" or usuario.get("username") == "admin"
+
+
+def es_gestor(usuario: dict) -> bool:
+    """Admin o super admin (gestión de inventario y usuarios, sin contraseñas para admin)."""
+    return es_super_admin(usuario) or usuario.get("role") == "admin"
+
+
 def exigir_super_admin(usuario):
-    if usuario.get("username") != "admin" and usuario.get("role") != "super_admin":
+    if not es_super_admin(usuario):
         raise HTTPException(status_code=403, detail="Solo el super admin puede realizar esta acción")
 
 
+def exigir_gestor(usuario):
+    if not es_gestor(usuario):
+        raise HTTPException(status_code=403, detail="Solo admin o super admin pueden realizar esta acción")
+
+
+def rol_asignable_por(actor: dict, role: str) -> bool:
+    if role not in ROLES_VALIDOS:
+        return False
+    if es_super_admin(actor):
+        return True
+    return role in ROLES_ASIGNABLES_POR_ADMIN
+
+
+def puede_gestionar_usuario(actor: dict, target_username: str, target_role: str) -> bool:
+    if es_super_admin(actor):
+        return True
+    if not es_gestor(actor):
+        return False
+    if target_username == "admin" or (target_role or "") == "super_admin":
+        return False
+    return True
+
+
 def puede_resetear_password_super_admin(actor: dict, target_username: str, target_role: str) -> bool:
-    """Super admin puede resetear su propia contraseña y la de roles inferiores (guardia, ingeniero)."""
+    """Super admin puede resetear su contraseña y la de roles inferiores (no otro super admin)."""
+    if not es_super_admin(actor):
+        return False
     if actor.get("username") == target_username:
         return True
     return (target_role or "ingeniero") != "super_admin"
@@ -1047,8 +1085,10 @@ def me(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/usuarios")
 def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    role = data.role if data.role in ["guardia", "ingeniero", "super_admin"] else "ingeniero"
+    exigir_gestor(usuario)
+    role = data.role if data.role in ROLES_VALIDOS else "ingeniero"
+    if not rol_asignable_por(usuario, role):
+        raise HTTPException(status_code=403, detail="No puedes asignar ese rol")
     if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
         if _usuario_supabase_por_username(data.username, activo=None):
             raise HTTPException(status_code=400, detail="El usuario ya existe")
@@ -1083,6 +1123,7 @@ def crear_usuario(data: UsuarioCreate, usuario=Depends(get_usuario_actual)):
 
 @app.get("/api/usuarios")
 def listar_usuarios(usuario=Depends(get_usuario_actual)):
+    exigir_gestor(usuario)
     if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
         try:
             rows = _supabase_request("GET", "usuarios", params={"select": "username,nombre,role", "activo": "eq.true", "order": "username.asc"}) or []
@@ -1127,9 +1168,16 @@ def migrar_usuarios_locales(usuario=Depends(get_usuario_actual)):
 
 @app.patch("/api/usuarios/{username}/role")
 def cambiar_rol_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
-    if data.role not in ["guardia", "ingeniero", "super_admin"]:
+    exigir_gestor(usuario)
+    if data.role not in ROLES_VALIDOS:
         raise HTTPException(status_code=400, detail="Rol inválido")
+    if not rol_asignable_por(usuario, data.role):
+        raise HTTPException(status_code=403, detail="No puedes asignar ese rol")
+    target = _usuario_actual_por_username(username)
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not puede_gestionar_usuario(usuario, username, target.get("role")):
+        raise HTTPException(status_code=403, detail="No puedes modificar este usuario")
     if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and _usuario_supabase_por_username(username, activo=True):
         _supabase_request("PATCH", "usuarios", params={"username": f"eq.{username}"}, json={"role": data.role})
         return {"ok": True}
@@ -1147,9 +1195,12 @@ def cambiar_rol_usuario(username: str, data: UsuarioRoleUpdate, usuario=Depends(
 
 @app.delete("/api/usuarios/{username}")
 def eliminar_usuario(username: str, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     if username == "admin":
         raise HTTPException(status_code=400, detail="No se puede eliminar el admin")
+    target = _usuario_actual_por_username(username)
+    if target and not puede_gestionar_usuario(usuario, username, target.get("role")):
+        raise HTTPException(status_code=403, detail="No puedes eliminar este usuario")
     if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and _usuario_supabase_por_username(username, activo=None):
         _supabase_request("PATCH", "usuarios", params={"username": f"eq.{username}"}, json={"activo": False})
         return {"ok": True, "mensaje": f"Usuario {username} eliminado"}
@@ -1181,7 +1232,7 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/assets")
 def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     payload = _asset_payload_supabase(data)
     existente = _buscar_asset_supabase_por_serie(payload.get("serie") or "")
     if existente:
@@ -1197,7 +1248,7 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
 
 @app.patch("/api/assets/{asset_id}")
 def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     payload = _asset_payload_supabase(data)
     payload.pop("id", None)
     _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
@@ -1207,7 +1258,7 @@ def editar_asset(asset_id: str, data: AssetCreate, usuario=Depends(get_usuario_a
 
 @app.delete("/api/assets/{asset_id}")
 def eliminar_asset(asset_id: str, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     _supabase_request("DELETE", "equipos", params={"id": f"eq.{asset_id}"}, prefer="return=minimal")
     _cache_clear("assets")
     return {"ok": True}
@@ -1226,7 +1277,7 @@ def listar_empleados(usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/empleados")
 def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     payload = _empleado_payload_supabase(data)
     rows = _supabase_request("POST", "empleados", params={"on_conflict": "num_empleado"}, json=payload, prefer="resolution=merge-duplicates,return=representation") or []
     _cache_clear("empleados")
@@ -1235,7 +1286,7 @@ def crear_empleado(data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
 
 @app.patch("/api/empleados/{empleado_id}")
 def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     payload = _empleado_payload_supabase(data)
     payload.pop("num_empleado", None)
     _supabase_request("PATCH", "empleados", params={"num_empleado": f"eq.{empleado_id}"}, json=payload)
@@ -1245,7 +1296,7 @@ def editar_empleado(empleado_id: str, data: EmpleadoCreate, usuario=Depends(get_
 
 @app.delete("/api/empleados/{empleado_id}")
 def eliminar_empleado(empleado_id: str, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     _supabase_request("DELETE", "empleados", params={"num_empleado": f"eq.{empleado_id}"}, prefer="return=minimal")
     _cache_clear("empleados")
     return {"ok": True, "id": empleado_id}
@@ -1253,7 +1304,7 @@ def eliminar_empleado(empleado_id: str, usuario=Depends(get_usuario_actual)):
 
 @app.post("/api/empleados/bulk")
 def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     filas = []
     errores = []
     for idx, empleado in enumerate(data.empleados, start=1):
@@ -1276,7 +1327,7 @@ def guardar_empleados_bulk(data: EmpleadosBulk, usuario=Depends(get_usuario_actu
 
 @app.patch("/api/assets/{asset_id}/asignacion")
 def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     payload = {
         "asignado": (data.asignado or "").strip() or None,
         "departamento": (data.departamento or "").strip() or None,
@@ -1431,6 +1482,7 @@ def mobile_confirmar_salida_solicitud_casa(solicitud_id: str, data: SolicitudCas
 
 @app.post("/api/usuarios/cambiar-password")
 def cambiar_password(data: CambiarPassword, usuario=Depends(get_usuario_actual)):
+    exigir_super_admin(usuario)
     uname = usuario["username"]
 
     # Buscar en Supabase primero
@@ -1747,7 +1799,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
 
 @app.patch("/api/equipos/{device_id}/usb-policy")
 def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     db = Session()
     try:
         equipo = db.query(Equipo).filter_by(device_id=device_id).first()
@@ -1765,7 +1817,7 @@ def actualizar_usb_policy(device_id: str, data: UsbPolicyUpdate, usuario=Depends
 
 @app.patch("/api/equipos/usb-policy/bulk")
 def actualizar_usb_policy_bulk(data: UsbPolicyBulkUpdate, usuario=Depends(get_usuario_actual)):
-    exigir_super_admin(usuario)
+    exigir_gestor(usuario)
     ids = [device_id for device_id in data.device_ids if str(device_id or "").strip()]
     if not ids:
         raise HTTPException(status_code=400, detail="Selecciona al menos un equipo")
@@ -1798,8 +1850,7 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     Elimina un equipo de la BD (y su historial de pings).
     Útil para limpiar duplicados o equipos dados de baja.
     """
-    if usuario.get("username") != "admin" and usuario.get("role") != "super_admin":
-        raise HTTPException(status_code=403, detail="Solo el super admin puede eliminar equipos")
+    exigir_gestor(usuario)
 
     db = Session()
     try:
@@ -2043,7 +2094,12 @@ def guardia_page():
 
 @app.get("/reset-password")
 def reset_password_page():
-    return FileResponse("reset-password.html")
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.get("/auth-session.js")
+def auth_session_js():
+    return FileResponse("auth-session.js", media_type="application/javascript")
 
 
 @app.get("/")
