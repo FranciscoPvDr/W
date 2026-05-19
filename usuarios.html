@@ -127,7 +127,7 @@ tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
 
     <label>Nueva contraseña <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
     <input id="editPassword" type="password" placeholder="Dejar vacío para no cambiar">
-    <p class="hint-pass">Si dejas este campo vacío, la contraseña no se modifica.</p>
+    <p class="hint-pass">Opcional. Como super admin puedes asignar una nueva contraseña (mín. 6 caracteres).</p>
 
     <span id="editMsg"></span>
 
@@ -196,12 +196,22 @@ async function crearUsuario() {
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function abrirModal(uname, nombre, role) {
+  const myUser = localStorage.getItem('monitor_username') || '';
+  const otroSuperAdmin = role === 'super_admin' && uname !== myUser;
+
   editUsername.value  = uname;
   editNombre.value    = nombre;
   editRole.value      = role;
   editPassword.value  = '';
+  editPassword.disabled = otroSuperAdmin;
   editMsg.textContent = '';
   editSubtitle.textContent = `Editando: @${uname}`;
+  const hint = document.querySelector('.hint-pass');
+  if (hint) {
+    hint.textContent = otroSuperAdmin
+      ? 'No puedes cambiar la contraseña de otro super admin.'
+      : 'Como super admin puedes asignar una nueva contraseña (mín. 6 caracteres).';
+  }
   modalOverlay.classList.add('open');
 }
 
@@ -236,26 +246,31 @@ async function guardarEdicion() {
     return;
   }
 
-  // 2. Cambiar contraseña si se ingresó una nueva (solo si es el mismo usuario logueado)
+  // 2. Cambiar contraseña (super admin: propia o roles inferiores)
   if (newPass) {
-    const myUser = localStorage.getItem('monitor_username') || '';
-    if (uname !== myUser) {
-      editMsg.style.color = 'var(--amber-t)';
-      editMsg.textContent = '⚠ Rol actualizado. Para cambiar contraseña de otro usuario, pídele que use "Cambiar Contraseña".';
-      cargar();
-      setTimeout(cerrarModal, 2500);
+    if (newPass.length < 6) {
+      editMsg.style.color = 'var(--red-t)';
+      editMsg.textContent = '✗ La contraseña debe tener al menos 6 caracteres';
       return;
     }
-    // Si es el propio usuario, redirigir a reset-password
-    editMsg.style.color = 'var(--amber-t)';
-    editMsg.textContent = '⚠ Rol actualizado. Para cambiar tu contraseña usa la sección "Contraseña".';
-    cargar();
-    setTimeout(cerrarModal, 2500);
-    return;
+    const resPass = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(uname)}/reset-password`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({ password_nueva: newPass })
+    });
+    if (!resPass.ok) {
+      const d = await resPass.json().catch(() => ({}));
+      editMsg.style.color = 'var(--red-t)';
+      editMsg.textContent = '✗ Rol actualizado, pero falló la contraseña: ' + (d.detail || resPass.status);
+      cargar();
+      return;
+    }
   }
 
   editMsg.style.color = 'var(--green-t)';
-  editMsg.textContent = '✓ Usuario actualizado correctamente';
+  editMsg.textContent = newPass
+    ? '✓ Usuario y contraseña actualizados'
+    : '✓ Usuario actualizado correctamente';
   cargar();
   setTimeout(cerrarModal, 1200);
 }

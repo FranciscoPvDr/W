@@ -992,6 +992,13 @@ def exigir_super_admin(usuario):
         raise HTTPException(status_code=403, detail="Solo el super admin puede realizar esta acción")
 
 
+def puede_resetear_password_super_admin(actor: dict, target_username: str, target_role: str) -> bool:
+    """Super admin puede resetear su propia contraseña y la de roles inferiores (guardia, ingeniero)."""
+    if actor.get("username") == target_username:
+        return True
+    return (target_role or "ingeniero") != "super_admin"
+
+
 # ── Geolocalización Google ─────────────────────────────────────────────────
 async def geolocate(wifi_networks: list):
     """Llama a Google Geolocation API con lista de redes WiFi."""
@@ -1460,6 +1467,16 @@ class ResetPasswordAdmin(BaseModel):
 @app.post("/api/usuarios/{username}/reset-password")
 def reset_password_admin(username: str, data: ResetPasswordAdmin, usuario=Depends(get_usuario_actual)):
     exigir_super_admin(usuario)
+    if not data.password_nueva or len(data.password_nueva.strip()) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña nueva debe tener al menos 6 caracteres")
+    target = _usuario_actual_por_username(username)
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if not puede_resetear_password_super_admin(usuario, username, target.get("role")):
+        raise HTTPException(
+            status_code=403,
+            detail="No puedes cambiar la contraseña de otro super admin",
+        )
     nuevo_hash = pwd_context.hash(data.password_nueva)
 
     # Intentar en Supabase primero
