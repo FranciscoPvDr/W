@@ -399,7 +399,11 @@ function editarAsset(id) {
 function editarDesdeUrl() {
   const edit = new URLSearchParams(location.search).get('edit');
   if (!document.getElementById('editAssetId')) return false;
-  if (!edit || !assets.length) return false;
+  if (!edit) return false;
+  if (!assets.length) {
+    setTimeout(editarDesdeUrl, 300);
+    return false;
+  }
   const asset = assets.find((a) => norm(a.numInventario) === norm(edit) || norm(a.id) === norm(edit));
   if (!asset) return false;
   editarAsset(asset.id);
