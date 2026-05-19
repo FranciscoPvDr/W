@@ -34,8 +34,9 @@
       <div class="grid-2">
         <div><label>No. inventario</label><input id="numInventario" /></div>
         <div><label>Estado</label><select id="estado"><option>Activo</option><option>Disponible</option><option>En reparación</option><option>Baja</option></select></div>
-        <div><label>Marca</label><input id="marca" /></div>
-        <div><label>Modelo</label><input id="modelo" /></div>
+        <div id="subtipoWrap"><label>Subtipo</label><select id="subtipo"></select></div>
+        <div><label>Marca</label><select id="marcaSelect"></select><input id="marcaNueva" placeholder="Nueva marca" style="display:none;margin-top:8px" /></div>
+        <div><label>Modelo</label><select id="modeloSelect"></select><input id="modeloNuevo" placeholder="Nuevo modelo" style="display:none;margin-top:8px" /></div>
         <div><label>Serie</label><input id="serie" /></div>
         <div><label>Fecha de compra</label><input id="fechaCompra" placeholder="2025-05-14" /></div>
       </div>
