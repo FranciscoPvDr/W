@@ -2,6 +2,9 @@ const SERVER = window.location.origin;
 let TOKEN = localStorage.getItem('monitor_token');
 let assetActual = null;
 
+// AGREGAR ESTA LÍNEA:
+const detailCard = document.getElementById('detailCard');
+
 if (!TOKEN) location.href = '/login';
 
 function headers() { return { Authorization: `Bearer ${TOKEN}` }; }

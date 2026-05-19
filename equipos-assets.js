@@ -110,12 +110,6 @@ function vinculosHtml(a) {
     const ok = a.parentEnInventario !== false;
     parts.push(`<span class="pill ${ok ? 'pill-ok' : 'pill-warn'}">Padre: ${esc(a.parentInventario)}${a.parentInventarioInferido ? ' (auto)' : ''}</span>`);
   }
-  if (a.cargadorEsperado) {
-    if (a.cargadorRegistrado) {
-      parts.push(`<span class="pill pill-ok">Cargador: ${esc(a.cargadorEsperado)}</span>`);
-    } else {
-      parts.push(`<span class="pill pill-warn">Falta cargador: ${esc(a.cargadorEsperado)}</span>`);
-    }
   }
   if (a.accesorios && a.accesorios.length) {
     a.accesorios.forEach((h) => {
