@@ -1,256 +1,284 @@
+Usuarios · HTML
+Copiar
+
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inventario TI - Usuarios</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" /><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"><style>
 :root{--bg:#080a0e;--panel:#0d1117;--panel2:#131920;--panel-glass:rgba(13,17,23,0.7);--border:rgba(99,179,237,.08);--border2:rgba(99,179,237,.18);--text:#cdd9e5;--text2:#768390;--text3:#3d4852;--green:#3fb950;--green-bg:#0a2416;--green-t:#56d364;--red:#f85149;--red-bg:#2a0a0a;--red-t:#ff7b72;--blue:#388bfd;--blue-bg:#031d3a;--blue-t:#79c0ff;--cyan:#39c5cf;--purple:#a371f7;--amber:#d29922;--amber-bg:#2a2012;--amber-t:#f2cc60;--accent:#388bfd;--shadow-sm:0 4px 16px rgba(0,0,0,0.2);--shadow-lg:0 12px 48px rgba(0,0,0,0.4)}
-*{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}body:before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,139,253,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(56,139,253,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}body:after{content:'';position:fixed;top:0;left:0;right:0;height:300px;background:radial-gradient(ellipse 80% 200px at 50% -50px,rgba(56,139,253,.1),transparent);pointer-events:none;z-index:0}header{padding:0 2.5rem;min-height:80px;border-bottom:1px solid rgba(56,139,253,0.15);display:flex;align-items:center;justify-content:space-between;gap:3rem;position:sticky;top:0;background:rgba(6,8,17,0.85);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);z-index:100;box-shadow:0 1px 0 0 rgba(99,179,237,0.12),0 20px 60px rgba(0,0,0,0.5),0 0 100px rgba(56,139,253,0.03),inset 0 1px 0 0 rgba(255,255,255,0.05);transition:all 0.5s cubic-bezier(0.4,0,0.2,1);animation:headerSlideDown 0.6s cubic-bezier(0.4,0,0.2,1)}@keyframes headerSlideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}header::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(56,139,253,0.05),rgba(163,113,247,0.08) 33%,rgba(57,197,207,0.06) 66%,rgba(56,139,253,0.05));background-size:200% 100%;opacity:0;transition:opacity 0.5s;animation:gradientShift 15s ease infinite}@keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}header::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(56,139,253,0.5) 50%,transparent);opacity:0;transition:opacity 0.5s}header:hover{border-bottom-color:rgba(56,139,253,0.3);box-shadow:0 1px 0 0 rgba(99,179,237,0.2),0 24px 80px rgba(0,0,0,0.6),0 0 120px rgba(56,139,253,0.08),inset 0 1px 0 0 rgba(255,255,255,0.08)}header:hover::before{opacity:1}header:hover::after{opacity:1}.logo{display:flex;align-items:center;gap:14px;font-family:'Space Mono',monospace;font-size:0.85rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text);font-weight:700;transition:all 0.4s cubic-bezier(0.4,0,0.2,1);position:relative;padding:8px 16px;border-radius:12px;cursor:pointer;background:transparent}.logo::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(56,139,253,0.1),rgba(163,113,247,0.08));border-radius:12px;opacity:0;transition:opacity 0.4s}.logo:hover{color:var(--blue-t);transform:translateY(-2px)}.logo:hover::before{opacity:1}.logo-pulse{width:12px;height:12px;border-radius:50%;background:var(--green);box-shadow:0 0 16px var(--green),0 0 32px rgba(63,185,80,0.4),inset 0 0 8px rgba(255,255,255,0.3);animation:logoPulse 2s ease-in-out infinite;position:relative}.logo-pulse::before{content:'';position:absolute;inset:2px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,0.8),transparent 60%)}.logo-pulse::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--green);opacity:0;animation:ripple 2s ease-out infinite}@keyframes logoPulse{0%,100%{opacity:1;transform:scale(1);box-shadow:0 0 16px var(--green),0 0 32px rgba(63,185,80,0.4),inset 0 0 8px rgba(255,255,255,0.3)}50%{opacity:0.85;transform:scale(0.92);box-shadow:0 0 12px var(--green),0 0 24px rgba(63,185,80,0.3),inset 0 0 6px rgba(255,255,255,0.2)}}@keyframes ripple{0%{transform:scale(0.7);opacity:0.8}100%{transform:scale(2);opacity:0}}.title-block{display:flex;flex-direction:column;gap:4px;min-width:200px}.title-block h1{font-family:'DM Sans',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--text),var(--blue-t));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;transition:all 0.3s}header:hover .title-block h1{background:linear-gradient(135deg,var(--blue-t),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.nav{display:flex;background:rgba(15,20,31,0.5);backdrop-filter:blur(10px);border:1px solid rgba(56,139,253,0.2);border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 2px 8px rgba(0,0,0,0.3);flex-wrap:wrap}.nav a,.nav button{padding:10px 20px;border-radius:10px;border:none;background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:0.8rem;font-weight:600;letter-spacing:0.02em;cursor:pointer;transition:all 0.35s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;text-decoration:none}.nav a::before,.nav button::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(56,139,253,0.12),rgba(163,113,247,0.1));opacity:0;transition:opacity 0.35s;border-radius:10px}.nav a::after,.nav button::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%) scaleX(0);width:80%;height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);border-radius:2px}.nav a:hover,.nav button:hover{color:var(--text);transform:translateY(-2px)}.nav a:hover::before,.nav button:hover::before{opacity:1}.nav a:hover::after,.nav button:hover::after{transform:translateX(-50%) scaleX(1)}.nav a.active{background:linear-gradient(135deg,rgba(56,139,253,0.15),rgba(163,113,247,0.12));color:var(--blue-t);box-shadow:0 4px 16px rgba(56,139,253,0.3),0 0 24px rgba(56,139,253,0.1),inset 0 1px 0 rgba(255,255,255,0.1),inset 0 0 20px rgba(56,139,253,0.1);border:1px solid rgba(56,139,253,0.3);transform:translateY(-1px)}.nav a.active::before{opacity:0}.nav a.active::after{transform:translateX(-50%) scaleX(1);height:3px;background:linear-gradient(90deg,transparent,var(--blue),var(--cyan),var(--blue),transparent);box-shadow:0 0 12px var(--blue)}.nav button{padding:10px 20px;border:1px solid rgba(248,81,73,0.3);background:rgba(15,20,31,0.6);color:var(--text)}.nav button::before{background:radial-gradient(circle at center,rgba(248,81,73,0.3),transparent 70%)}.nav button:hover{background:rgba(248,81,73,0.15);color:var(--red-t);border-color:rgba(248,81,73,0.5);box-shadow:0 8px 24px rgba(248,81,73,0.4),0 0 40px rgba(248,81,73,0.2),inset 0 1px 0 rgba(255,255,255,0.1)}.btn{border:1px solid var(--border2);background:transparent;color:var(--text2);padding:7px 12px;border-radius:6px;text-decoration:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.78rem;transition:all .15s}.btn:hover{background:var(--panel2);color:var(--text);border-color:rgba(99,179,237,.28)}.danger:hover{background:var(--red-bg)!important;color:var(--red-t)!important;border-color:rgba(248,81,73,.3)!important}main{position:relative;z-index:1;padding:1.5rem 2rem;max-width:1500px;margin:0 auto}.page-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:1.5rem}.eyebrow{font-family:'Space Mono',monospace;color:var(--text3);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}.page-hero h2{font-family:'Space Mono',monospace;font-size:1.5rem;letter-spacing:.04em;color:var(--text)}.page-hero p,.muted,.hint{color:var(--text2);font-size:.82rem;line-height:1.45}.grid{display:grid;grid-template-columns:minmax(360px,440px) minmax(0,1fr);gap:20px;align-items:start}.stack{display:grid;gap:20px}
-
-    /* === Premium Cards with Glassmorphism === */
-    .card{
-      background:rgba(13,17,23,0.75);
-      backdrop-filter:blur(20px) saturate(160%);
-      -webkit-backdrop-filter:blur(20px) saturate(160%);
-      border:1px solid rgba(99,179,237,.12);
-      border-radius:16px;
-      padding:24px;
-      box-shadow:0 12px 48px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.03),inset 0 1px 0 0 rgba(255,255,255,.06);
-      position:relative;
-      overflow:hidden;
-      transition:all 0.4s cubic-bezier(0.4,0,0.2,1);
-    }
-    .card::before{
-      content:'';
-      position:absolute;
-      top:0;
-      left:0;
-      right:0;
-      height:2px;
-      background:linear-gradient(90deg,transparent,rgba(56,139,253,.5) 30%,rgba(163,113,247,.4) 70%,transparent);
-      opacity:0.8;
-      pointer-events:none;
-    }
-    .card::after{
-      content:'';
-      position:absolute;
-      inset:0;
-      background:radial-gradient(circle at 50% 0%,rgba(56,139,253,.08),transparent 60%);
-      opacity:0;
-      transition:opacity 0.4s;
-      pointer-events:none;
-    }
-    .card:hover{
-      border-color:rgba(99,179,237,.2);
-      box-shadow:0 16px 64px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.05),inset 0 1px 0 0 rgba(255,255,255,.08);
-      transform:translateY(-2px);
-    }
-    .card:hover::after{
-      opacity:1;
-    }
-    .card h2{
-      font-family:'Space Mono',monospace;
-      font-size:.95rem;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-      margin-bottom:16px;
-      color:var(--text);
-      background:linear-gradient(135deg,var(--text),var(--blue-t));
-      -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent;
-      background-clip:text;
-    }
-    
-    /* === Premium Form Elements === */
-    label{
-      display:block;
-      margin:12px 0 6px;
-      color:var(--text3);
-      font-family:'Space Mono',monospace;
-      font-size:.6rem;
-      font-weight:700;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-      transition:color 0.3s;
-    }
-    input,select,textarea{
-      width:100%;
-      padding:11px 14px;
-      border-radius:10px;
-      border:1px solid rgba(99,179,237,.15);
-      background:rgba(19,25,32,0.8);
-      backdrop-filter:blur(10px);
-      color:var(--text);
-      outline:none;
-      font-family:'DM Sans',sans-serif;
-      font-size:.88rem;
-      transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
-      box-shadow:inset 0 1px 3px rgba(0,0,0,.3);
-    }
-    textarea{
-      min-height:120px;
-      resize:vertical;
-      font-family:Consolas,monospace;
-    }
-    input:focus,select:focus,textarea:focus{
-      border-color:rgba(56,139,253,.5);
-      background:rgba(19,25,32,0.95);
-      box-shadow:0 0 0 4px rgba(56,139,253,.15),0 4px 16px rgba(56,139,253,.2),inset 0 1px 3px rgba(0,0,0,.2);
-      transform:translateY(-1px);
-    }
-    input:hover,select:hover,textarea:hover{
-      border-color:rgba(99,179,237,.25);
-    }
-    
-    /* === Premium Buttons === */
-    .btn{
-      border:1px solid rgba(99,179,237,.2);
-      background:rgba(13,17,23,0.6);
-      backdrop-filter:blur(10px);
-      color:var(--text);
-      padding:9px 16px;
-      border-radius:8px;
-      text-decoration:none;
-      cursor:pointer;
-      font-family:'DM Sans',sans-serif;
-      font-size:.8rem;
-      font-weight:600;
-      transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
-      position:relative;
-      overflow:hidden;
-    }
-    .btn::before{
-      content:'';
-      position:absolute;
-      inset:0;
-      background:radial-gradient(circle at center,rgba(56,139,253,.2),transparent 70%);
-      opacity:0;
-      transition:opacity 0.3s;
-      pointer-events:none;
-    }
-    .btn:hover{
-      background:rgba(56,139,253,0.15);
-      border-color:rgba(56,139,253,.35);
-      box-shadow:0 4px 16px rgba(56,139,253,.25),inset 0 1px 0 rgba(255,255,255,.1);
-      transform:translateY(-2px);
-    }
-    .btn:hover::before{
-      opacity:1;
-    }
-    .btn:active{
-      transform:translateY(0);
-    }
-    .primary{
-      background:rgba(10,36,22,0.8)!important;
-      border-color:rgba(63,185,80,.35)!important;
-      color:var(--green-t)!important;
-      box-shadow:0 0 20px rgba(63,185,80,.2);
-    }
-    .primary::before{
-      background:radial-gradient(circle at center,rgba(63,185,80,.3),transparent 70%)!important;
-    }
-    .primary:hover{
-      background:rgba(10,36,22,0.95)!important;
-      border-color:rgba(63,185,80,.5)!important;
-      box-shadow:0 4px 20px rgba(63,185,80,.4),0 0 30px rgba(63,185,80,.2),inset 0 1px 0 rgba(255,255,255,.15)!important;
-    }
-    .danger{
-      background:rgba(42,10,10,0.5)!important;
-      border-color:rgba(248,81,73,.3)!important;
-      color:var(--red-t)!important;
-    }
-    .danger::before{
-      background:radial-gradient(circle at center,rgba(248,81,73,.3),transparent 70%)!important;
-    }
-    .danger:hover{
-      background:rgba(42,10,10,0.8)!important;
-      border-color:rgba(248,81,73,.5)!important;
-      box-shadow:0 4px 20px rgba(248,81,73,.4),inset 0 1px 0 rgba(255,255,255,.1)!important;
-    }
-    
-    .toolbar{display:grid;grid-template-columns:1fr minmax(260px,420px);gap:14px;align-items:end;margin-bottom:16px}
-    
-    /* === Premium Table === */
-    .tablewrap{
-      max-width:100%;
-      overflow-x:auto;
-      border:1px solid rgba(99,179,237,.12);
-      border-radius:14px;
-      background:rgba(8,10,14,0.6);
-      backdrop-filter:blur(20px);
-      box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03);
-    }
-    table{
-      width:100%;
-      border-collapse:collapse;
-      table-layout:fixed;
-      min-width:1120px;
-    }
-    th,td{
-      padding:14px 12px;
-      border-bottom:1px solid rgba(99,179,237,.08);
-      text-align:left;
-      font-size:.88rem;
-      vertical-align:top;
-      overflow-wrap:anywhere;
-      word-break:break-word;
-      line-height:1.4;
-    }
-    th{
-      color:var(--text3);
-      font-family:'Space Mono',monospace;
-      font-size:.6rem;
-      letter-spacing:.13em;
-      text-transform:uppercase;
-      background:rgba(6,8,12,0.7);
-      font-weight:700;
-    }
-    tbody tr{
-      transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
-      position:relative;
-    }
-    tbody tr:hover{
-      background:rgba(56,139,253,.08);
-      box-shadow:inset 0 1px 0 rgba(56,139,253,.2),inset 0 -1px 0 rgba(56,139,253,.2);
-    }
-    tbody tr:hover td{
-      border-bottom-color:rgba(56,139,253,.15);
-    }
-    
-    /* === Premium Pills & Badges === */
-    .badge,.pill{
-      display:inline-block;
-      padding:5px 11px;
-      border-radius:999px;
-      background:linear-gradient(135deg,rgba(3,29,58,.8),rgba(3,29,58,.6));
-      border:1px solid rgba(56,139,253,.25);
-      color:var(--blue-t);
-      font-family:'Space Mono',monospace;
-      font-size:.68rem;
-      font-weight:600;
-      white-space:normal;
-      box-shadow:0 2px 8px rgba(56,139,253,.2),inset 0 1px 0 rgba(255,255,255,.08);
-    }
-    .ok{
-      background:linear-gradient(135deg,rgba(10,36,22,.8),rgba(10,36,22,.6));
-      border-color:rgba(63,185,80,.25);
-      color:var(--green-t);
-      box-shadow:0 2px 8px rgba(63,185,80,.2),inset 0 1px 0 rgba(255,255,255,.08);
-    }
-    
-    /* === Premium CSV Section === */
-    .csv-example{
-      display:block;
-      margin-top:10px;
-      padding:12px;
-      border:1px dashed rgba(99,179,237,.2);
-      border-radius:10px;
-      background:rgba(19,25,32,0.4);
-      color:var(--text2);
-      font-family:Consolas,monospace;
-      font-size:.72rem;
-      overflow-wrap:anywhere;
-    }
-    
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-    .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .field-full{grid-column:1/-1}
-    #msg,#bulkMsg{display:block;margin-top:12px;min-height:18px}@media(max-width:1100px){header{height:auto;padding:12px 1rem;align-items:flex-start;flex-direction:column}.grid,.toolbar{grid-template-columns:1fr}main{padding:1rem}.page-hero{display:block}.field-grid{grid-template-columns:1fr}.field-full{grid-column:auto}.tablewrap{margin-top:8px}}@media(max-width:520px){.nav a,.nav button,.btn{width:100%;text-align:center}.nav{width:100%}}
+*{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}body:before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(56,139,253,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(56,139,253,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}body:after{content:'';position:fixed;top:0;left:0;right:0;height:300px;background:radial-gradient(ellipse 80% 200px at 50% -50px,rgba(56,139,253,.1),transparent);pointer-events:none;z-index:0}header{padding:0 2.5rem;min-height:80px;border-bottom:1px solid rgba(56,139,253,0.15);display:flex;align-items:center;justify-content:space-between;gap:3rem;position:sticky;top:0;background:rgba(6,8,17,0.85);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);z-index:100;box-shadow:0 1px 0 0 rgba(99,179,237,0.12),0 20px 60px rgba(0,0,0,0.5),inset 0 1px 0 0 rgba(255,255,255,0.05);animation:headerSlideDown 0.6s cubic-bezier(0.4,0,0.2,1)}@keyframes headerSlideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}.logo{display:flex;align-items:center;gap:14px;font-family:'Space Mono',monospace;font-size:0.85rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--text);font-weight:700;transition:all 0.4s;position:relative;padding:8px 16px;border-radius:12px;cursor:pointer}.logo:hover{color:var(--blue-t);transform:translateY(-2px)}.logo-pulse{width:12px;height:12px;border-radius:50%;background:var(--green);box-shadow:0 0 16px var(--green),0 0 32px rgba(63,185,80,0.4);animation:logoPulse 2s ease-in-out infinite}@keyframes logoPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.85;transform:scale(0.92)}}.title-block{display:flex;flex-direction:column;gap:4px;min-width:200px}.title-block h1{font-family:'DM Sans',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin:0;letter-spacing:-0.02em;background:linear-gradient(135deg,var(--text),var(--blue-t));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.nav{display:flex;background:rgba(15,20,31,0.5);backdrop-filter:blur(10px);border:1px solid rgba(56,139,253,0.2);border-radius:12px;padding:5px;gap:4px;box-shadow:inset 0 2px 8px rgba(0,0,0,0.3);flex-wrap:wrap}.nav a,.nav button{padding:10px 20px;border-radius:10px;border:none;background:transparent;color:var(--text2);font-family:'DM Sans',sans-serif;font-size:0.8rem;font-weight:600;letter-spacing:0.02em;cursor:pointer;transition:all 0.35s;position:relative;overflow:hidden;text-decoration:none}.nav a:hover,.nav button:hover{color:var(--text);transform:translateY(-2px)}.nav a.active{background:linear-gradient(135deg,rgba(56,139,253,0.15),rgba(163,113,247,0.12));color:var(--blue-t);box-shadow:0 4px 16px rgba(56,139,253,0.3),inset 0 1px 0 rgba(255,255,255,0.1);border:1px solid rgba(56,139,253,0.3)}.nav button{padding:10px 20px;border:1px solid rgba(248,81,73,0.3);background:rgba(15,20,31,0.6);color:var(--text)}.nav button:hover{background:rgba(248,81,73,0.15);color:var(--red-t);border-color:rgba(248,81,73,0.5)}
+main{position:relative;z-index:1;padding:1.5rem 2rem;max-width:1500px;margin:0 auto}.page-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:1.5rem}.eyebrow{font-family:'Space Mono',monospace;color:var(--text3);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}.page-hero h2{font-family:'Space Mono',monospace;font-size:1.5rem;letter-spacing:.04em;color:var(--text)}.page-hero p,.muted,.hint{color:var(--text2);font-size:.82rem;line-height:1.45}.grid{display:grid;grid-template-columns:minmax(360px,440px) minmax(0,1fr);gap:20px;align-items:start}.stack{display:grid;gap:20px}
+.card{background:rgba(13,17,23,0.75);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border:1px solid rgba(99,179,237,.12);border-radius:16px;padding:24px;box-shadow:0 12px 48px rgba(0,0,0,.4),inset 0 1px 0 0 rgba(255,255,255,.06);position:relative;overflow:hidden;transition:all 0.4s}.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(56,139,253,.5) 30%,rgba(163,113,247,.4) 70%,transparent);opacity:0.8;pointer-events:none}.card h2{font-family:'Space Mono',monospace;font-size:.95rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;color:var(--text);background:linear-gradient(135deg,var(--text),var(--blue-t));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+label{display:block;margin:12px 0 6px;color:var(--text3);font-family:'Space Mono',monospace;font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+input,select,textarea{width:100%;padding:11px 14px;border-radius:10px;border:1px solid rgba(99,179,237,.15);background:rgba(19,25,32,0.8);backdrop-filter:blur(10px);color:var(--text);outline:none;font-family:'DM Sans',sans-serif;font-size:.88rem;transition:all 0.35s;box-shadow:inset 0 1px 3px rgba(0,0,0,.3)}
+input:focus,select:focus{border-color:rgba(56,139,253,.5);background:rgba(19,25,32,0.95);box-shadow:0 0 0 4px rgba(56,139,253,.15),inset 0 1px 3px rgba(0,0,0,.2);transform:translateY(-1px)}
+.btn{border:1px solid rgba(99,179,237,.2);background:rgba(13,17,23,0.6);backdrop-filter:blur(10px);color:var(--text);padding:9px 16px;border-radius:8px;text-decoration:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:600;transition:all 0.3s;position:relative;overflow:hidden}.btn:hover{background:rgba(56,139,253,0.15);border-color:rgba(56,139,253,.35);box-shadow:0 4px 16px rgba(56,139,253,.25);transform:translateY(-2px)}.btn:active{transform:translateY(0)}
+.primary{background:rgba(10,36,22,0.8)!important;border-color:rgba(63,185,80,.35)!important;color:var(--green-t)!important;box-shadow:0 0 20px rgba(63,185,80,.2)}.primary:hover{background:rgba(10,36,22,0.95)!important;border-color:rgba(63,185,80,.5)!important;box-shadow:0 4px 20px rgba(63,185,80,.4)!important}
+.danger{background:rgba(42,10,10,0.5)!important;border-color:rgba(248,81,73,.3)!important;color:var(--red-t)!important}.danger:hover{background:rgba(42,10,10,0.8)!important;border-color:rgba(248,81,73,.5)!important;box-shadow:0 4px 20px rgba(248,81,73,.4)!important}
+.edit-btn{background:rgba(3,29,58,0.5)!important;border-color:rgba(56,139,253,.3)!important;color:var(--blue-t)!important}.edit-btn:hover{background:rgba(3,29,58,0.8)!important;border-color:rgba(56,139,253,.5)!important;box-shadow:0 4px 20px rgba(56,139,253,.4)!important}
+.toolbar{display:grid;grid-template-columns:1fr minmax(260px,420px);gap:14px;align-items:end;margin-bottom:16px}
+.tablewrap{max-width:100%;overflow-x:auto;border:1px solid rgba(99,179,237,.12);border-radius:14px;background:rgba(8,10,14,0.6);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.03)}
+table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:700px}
+th,td{padding:14px 12px;border-bottom:1px solid rgba(99,179,237,.08);text-align:left;font-size:.88rem;vertical-align:middle;overflow-wrap:anywhere;word-break:break-word;line-height:1.4}
+th{color:var(--text3);font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;background:rgba(6,8,12,0.7);font-weight:700}
+tbody tr{transition:all 0.3s}tbody tr:hover{background:rgba(56,139,253,.08)}
+.badge{display:inline-block;padding:5px 11px;border-radius:999px;background:linear-gradient(135deg,rgba(3,29,58,.8),rgba(3,29,58,.6));border:1px solid rgba(56,139,253,.25);color:var(--blue-t);font-family:'Space Mono',monospace;font-size:.68rem;font-weight:600;box-shadow:0 2px 8px rgba(56,139,253,.2)}
+.badge.admin{background:linear-gradient(135deg,rgba(30,15,60,.8),rgba(30,15,60,.6));border-color:rgba(163,113,247,.3);color:#c4a0ff;box-shadow:0 2px 8px rgba(163,113,247,.2)}
+.badge.guardia{background:linear-gradient(135deg,rgba(42,32,10,.8),rgba(42,32,10,.6));border-color:rgba(210,153,34,.3);color:var(--amber-t);box-shadow:0 2px 8px rgba(210,153,34,.2)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+#msg{display:block;margin-top:12px;min-height:18px;font-size:.82rem}
+ 
+/* === MODAL === */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.3s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:rgba(13,17,23,0.98);border:1px solid rgba(99,179,237,.2);border-radius:20px;padding:32px;width:100%;max-width:460px;box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04),inset 0 1px 0 rgba(255,255,255,.07);position:relative;transform:scale(0.95) translateY(20px);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1)}
+.modal-overlay.open .modal{transform:scale(1) translateY(0)}
+.modal::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(56,139,253,.6) 30%,rgba(163,113,247,.5) 70%,transparent);border-radius:20px 20px 0 0}
+.modal h3{font-family:'Space Mono',monospace;font-size:1rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;background:linear-gradient(135deg,var(--text),var(--blue-t));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.modal .sub{color:var(--text2);font-size:.8rem;margin-bottom:20px}
+.modal-close{position:absolute;top:16px;right:16px;background:rgba(99,179,237,.08);border:1px solid rgba(99,179,237,.15);color:var(--text2);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s}.modal-close:hover{background:rgba(248,81,73,.15);color:var(--red-t);border-color:rgba(248,81,73,.3)}
+.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+.hint-pass{color:var(--text3);font-size:.72rem;margin-top:4px;font-style:italic}
+#editMsg{display:block;margin-top:10px;min-height:16px;font-size:.8rem}
+ 
+@media(max-width:1100px){header{height:auto;padding:12px 1rem;align-items:flex-start;flex-direction:column}.grid,.toolbar{grid-template-columns:1fr}main{padding:1rem}.page-hero{display:block}}
+@media(max-width:520px){.nav a,.nav button,.btn{width:100%;text-align:center}.nav{width:100%}}
 </style></head>
-<body><header><div class="logo"><div class="logo-pulse"></div>Monitor · Usuarios</div><div class="title-block"><h1>Inventario TI</h1></div><nav class="nav"><a href="/dashboard">Dashboard</a><a href="/equipos">Equipos</a><a href="/empleados">Empleados</a><a class="active" href="/usuarios">Usuarios</a><a href="/reset-password">Contraseña</a><button onclick="logout()"><i class="fas fa-right-from-bracket"></i> Salir</button></nav></header><main><section class="page-hero"><div><div class="eyebrow">Administracion de acceso</div><h2>Usuarios</h2><p>Crea usuarios internos y administra roles de acceso al monitor.</p></div></section><div class="grid"><section class="card"><h2>Crear usuario</h2><label>Usuario</label><input id="username" placeholder="usuario"><label>Nombre</label><input id="nombre" placeholder="Nombre completo"><label>Contrasena temporal</label><input id="password" type="password" placeholder="contrasena temporal"><label>Rol</label><select id="role"><option value="guardia">Guardia</option><option value="ingeniero">Ingeniero</option><option value="super_admin">Super Admin</option></select><button class="btn primary" onclick="crearUsuario()">Crear usuario</button><p class="muted" id="msg"></p></section><section class="card"><div class="toolbar"><div><h2>Usuarios activos</h2><div class="muted">Control de cuentas y permisos.</div></div></div><div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr></thead><tbody id="tbody"></tbody></table></div></section></div></main><script>const SERVER=location.origin,TOKEN=localStorage.getItem('monitor_token'),ROLE=localStorage.getItem('monitor_role');if(!TOKEN)location.href='/login';if(ROLE!=='super_admin')location.href='/dashboard';function headers(){return{Authorization:`Bearer ${TOKEN}`}}function jsonHeaders(){return{...headers(),'Content-Type':'application/json'}}function logout(){localStorage.clear();location.href='/login'}function roleLabel(r){return r==='super_admin'?'Super Admin':r==='guardia'?'Guardia':'Ingeniero'}async function cargar(){const res=await fetch(`${SERVER}/api/usuarios`,{headers:headers()});if(res.status===401)logout();const data=await res.json();tbody.innerHTML=(data.usuarios||[]).map(u=>`<tr><td>${u.username}</td><td>${u.nombre||''}</td><td><span class="badge">${roleLabel(u.role)}</span></td><td><select onchange="cambiarRol('${u.username}',this.value)"><option value="guardia" ${u.role==='guardia'?'selected':''}>Guardia</option><option value="ingeniero" ${u.role==='ingeniero'?'selected':''}>Ingeniero</option><option value="super_admin" ${u.role==='super_admin'?'selected':''}>Super Admin</option></select> <button class="btn danger" onclick="eliminarUsuario('${u.username}')">Eliminar</button></td></tr>`).join('')}async function crearUsuario(){const payload={username:username.value.trim(),nombre:nombre.value.trim(),password:password.value,role:role.value};const res=await fetch(`${SERVER}/api/usuarios`,{method:'POST',headers:jsonHeaders(),body:JSON.stringify(payload)});const data=await res.json().catch(()=>({}));msg.textContent=res.ok?'Usuario creado':(data.detail||'Error');if(res.ok){username.value=nombre.value=password.value='';cargar()}}async function cambiarRol(user,role){const res=await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}/role`,{method:'PATCH',headers:jsonHeaders(),body:JSON.stringify({role})});if(!res.ok)alert('No se pudo cambiar rol');cargar()}async function eliminarUsuario(user){if(user==='admin'){alert('No se puede eliminar admin');return}if(!confirm(`¿Eliminar ${user}?`))return;const res=await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}`,{method:'DELETE',headers:headers()});if(!res.ok)alert('No se pudo eliminar');cargar()}cargar()</script></body></html>
+<body>
+<header>
+  <div class="logo"><div class="logo-pulse"></div>Monitor · Usuarios</div>
+  <div class="title-block"><h1>Inventario TI</h1></div>
+  <nav class="nav">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/equipos">Equipos</a>
+    <a href="/empleados">Empleados</a>
+    <a class="active" href="/usuarios">Usuarios</a>
+    <a href="/reset-password">Contraseña</a>
+    <button onclick="logout()"><i class="fas fa-right-from-bracket"></i> Salir</button>
+  </nav>
+</header>
+ 
+<main>
+  <section class="page-hero">
+    <div>
+      <div class="eyebrow">Administracion de acceso</div>
+      <h2>Usuarios</h2>
+      <p>Crea usuarios internos y administra roles de acceso al monitor.</p>
+    </div>
+  </section>
+ 
+  <div class="grid">
+    <!-- Crear usuario -->
+    <section class="card">
+      <h2>Crear usuario</h2>
+      <label>Usuario</label>
+      <input id="username" placeholder="usuario">
+      <label>Nombre</label>
+      <input id="nombre" placeholder="Nombre completo">
+      <label>Contraseña temporal</label>
+      <input id="password" type="password" placeholder="contraseña temporal">
+      <label>Rol</label>
+      <select id="role">
+        <option value="guardia">Guardia</option>
+        <option value="ingeniero">Ingeniero</option>
+        <option value="super_admin">Super Admin</option>
+      </select>
+      <br><br>
+      <button class="btn primary" onclick="crearUsuario()"><i class="fas fa-user-plus"></i> Crear usuario</button>
+      <p class="muted" id="msg"></p>
+    </section>
+ 
+    <!-- Tabla usuarios -->
+    <section class="card">
+      <div style="margin-bottom:16px">
+        <h2>Usuarios activos</h2>
+        <div class="muted">Control de cuentas y permisos.</div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:20%">Usuario</th>
+              <th style="width:28%">Nombre</th>
+              <th style="width:17%">Rol</th>
+              <th style="width:35%">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+ 
+<!-- Modal Editar Usuario -->
+<div class="modal-overlay" id="modalOverlay" onclick="cerrarModalSiAfuera(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal()"><i class="fas fa-times"></i></button>
+    <h3><i class="fas fa-user-pen" style="margin-right:8px;font-size:.9rem"></i>Editar usuario</h3>
+    <p class="sub" id="editSubtitle">Modifica los datos del usuario.</p>
+ 
+    <input type="hidden" id="editUsername">
+ 
+    <label>Nombre completo</label>
+    <input id="editNombre" placeholder="Nombre completo">
+ 
+    <label>Rol</label>
+    <select id="editRole">
+      <option value="guardia">Guardia</option>
+      <option value="ingeniero">Ingeniero</option>
+      <option value="super_admin">Super Admin</option>
+    </select>
+ 
+    <label>Nueva contraseña <span style="color:var(--text3);font-weight:400">(opcional)</span></label>
+    <input id="editPassword" type="password" placeholder="Dejar vacío para no cambiar">
+    <p class="hint-pass">Si dejas este campo vacío, la contraseña no se modifica.</p>
+ 
+    <span id="editMsg"></span>
+ 
+    <div class="modal-actions">
+      <button class="btn" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn primary" onclick="guardarEdicion()"><i class="fas fa-save"></i> Guardar cambios</button>
+    </div>
+  </div>
+</div>
+ 
+<script>
+const SERVER = location.origin;
+const TOKEN  = localStorage.getItem('monitor_token');
+const ROLE   = localStorage.getItem('monitor_role');
+ 
+if (!TOKEN) location.href = '/login';
+if (ROLE !== 'super_admin') location.href = '/dashboard';
+ 
+function headers()     { return { Authorization: `Bearer ${TOKEN}` } }
+function jsonHeaders() { return { ...headers(), 'Content-Type': 'application/json' } }
+function logout()      { localStorage.clear(); location.href = '/login' }
+ 
+function roleLabel(r) {
+  return r === 'super_admin' ? 'Super Admin' : r === 'guardia' ? 'Guardia' : 'Ingeniero';
+}
+function roleBadgeClass(r) {
+  return r === 'super_admin' ? 'badge admin' : r === 'guardia' ? 'badge guardia' : 'badge';
+}
+ 
+async function cargar() {
+  const res  = await fetch(`${SERVER}/api/usuarios`, { headers: headers() });
+  if (res.status === 401) logout();
+  const data = await res.json();
+  tbody.innerHTML = (data.usuarios || []).map(u => `
+    <tr>
+      <td><code style="color:var(--cyan);font-size:.82rem">${u.username}</code></td>
+      <td>${u.nombre || ''}</td>
+      <td><span class="${roleBadgeClass(u.role)}">${roleLabel(u.role)}</span></td>
+      <td>
+        <div class="actions">
+          <button class="btn edit-btn" onclick="abrirModal('${u.username}','${(u.nombre||'').replace(/'/g,"\\'")}','${u.role}')">
+            <i class="fas fa-pen"></i> Editar
+          </button>
+          <button class="btn danger" onclick="eliminarUsuario('${u.username}')">
+            <i class="fas fa-trash"></i> Eliminar
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+ 
+async function crearUsuario() {
+  const payload = {
+    username: username.value.trim(),
+    nombre:   nombre.value.trim(),
+    password: password.value,
+    role:     role.value
+  };
+  const res  = await fetch(`${SERVER}/api/usuarios`, { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  msg.style.color = res.ok ? 'var(--green-t)' : 'var(--red-t)';
+  msg.textContent = res.ok ? '✓ Usuario creado correctamente' : (data.detail || 'Error al crear usuario');
+  if (res.ok) { username.value = nombre.value = password.value = ''; cargar(); }
+}
+ 
+// ── Modal ──────────────────────────────────────────────────────────────────
+function abrirModal(uname, nombre, role) {
+  editUsername.value  = uname;
+  editNombre.value    = nombre;
+  editRole.value      = role;
+  editPassword.value  = '';
+  editMsg.textContent = '';
+  editSubtitle.textContent = `Editando: @${uname}`;
+  modalOverlay.classList.add('open');
+}
+ 
+function cerrarModal() {
+  modalOverlay.classList.remove('open');
+}
+ 
+function cerrarModalSiAfuera(e) {
+  if (e.target === modalOverlay) cerrarModal();
+}
+ 
+async function guardarEdicion() {
+  const uname    = editUsername.value;
+  const newNombre = editNombre.value.trim();
+  const newRole   = editRole.value;
+  const newPass   = editPassword.value;
+ 
+  editMsg.style.color = 'var(--text2)';
+  editMsg.textContent = 'Guardando...';
+ 
+  // 1. Cambiar rol
+  const resRol = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(uname)}/role`, {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ role: newRole })
+  });
+ 
+  if (!resRol.ok) {
+    const d = await resRol.json().catch(() => ({}));
+    editMsg.style.color = 'var(--red-t)';
+    editMsg.textContent = '✗ Error al cambiar rol: ' + (d.detail || resRol.status);
+    return;
+  }
+ 
+  // 2. Cambiar contraseña si se ingresó una nueva (solo si es el mismo usuario logueado)
+  if (newPass) {
+    const myUser = localStorage.getItem('monitor_username') || '';
+    if (uname !== myUser) {
+      editMsg.style.color = 'var(--amber-t)';
+      editMsg.textContent = '⚠ Rol actualizado. Para cambiar contraseña de otro usuario, pídele que use "Cambiar Contraseña".';
+      cargar();
+      setTimeout(cerrarModal, 2500);
+      return;
+    }
+    // Si es el propio usuario, redirigir a reset-password
+    editMsg.style.color = 'var(--amber-t)';
+    editMsg.textContent = '⚠ Rol actualizado. Para cambiar tu contraseña usa la sección "Contraseña".';
+    cargar();
+    setTimeout(cerrarModal, 2500);
+    return;
+  }
+ 
+  editMsg.style.color = 'var(--green-t)';
+  editMsg.textContent = '✓ Usuario actualizado correctamente';
+  cargar();
+  setTimeout(cerrarModal, 1200);
+}
+ 
+async function cambiarRol(user, role) {
+  const res = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}/role`, {
+    method: 'PATCH', headers: jsonHeaders(), body: JSON.stringify({ role })
+  });
+  if (!res.ok) alert('No se pudo cambiar rol');
+  cargar();
+}
+ 
+async function eliminarUsuario(user) {
+  if (user === 'admin') { alert('No se puede eliminar el admin'); return; }
+  if (!confirm(`¿Eliminar al usuario "${user}"? Esta acción no se puede deshacer.`)) return;
+  const res = await fetch(`${SERVER}/api/usuarios/${encodeURIComponent(user)}`, { method: 'DELETE', headers: headers() });
+  if (!res.ok) alert('No se pudo eliminar el usuario');
+  cargar();
+}
+ 
+cargar();
+</script>
+</body></html>
