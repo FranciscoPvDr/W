@@ -975,14 +975,12 @@ def _solicitud_row_to_api(row: dict) -> dict:
 def _asset_payload_supabase(data: AssetCreate) -> dict:
     data = _aplicar_vinculos_asset(data)
     asset_id = (data.numInventario or data.serie or str(uuid.uuid4())).strip()
-    parent = (data.parentInventario or "").strip() or None
     return {
         "id": asset_id,
         "num_inventario": (data.numInventario or "").strip() or None,
         "serie": (data.serie or "").strip() or None,
         "tipo": (data.tipo or "Laptop").strip() or None,
         "subtipo": (data.subtipo or "").strip() or None,
-        "parent_inventario": parent,
         "marca": (data.marca or "").strip() or None,
         "modelo": (data.modelo or "").strip() or None,
         "estado": (data.estado or "Activo").strip() or "Activo",
