@@ -1424,14 +1424,33 @@ def mobile_confirmar_salida_solicitud_casa(solicitud_id: str, data: SolicitudCas
 
 @app.post("/api/usuarios/cambiar-password")
 def cambiar_password(data: CambiarPassword, usuario=Depends(get_usuario_actual)):
+    uname = usuario["username"]
+
+    # Buscar en Supabase primero
+    if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+        row = _usuario_supabase_por_username(uname, activo=True)
+        if row:
+            if not verificar_password(data.password_actual, row.get("password", "")):
+                raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+            _supabase_request(
+                "PATCH", "usuarios",
+                params={"username": f"eq.{uname}"},
+                json={"password": pwd_context.hash(data.password_nueva)},
+                prefer="return=minimal"
+            )
+            return {"ok": True, "mensaje": "Contraseña actualizada"}
+
+    # Fallback SQLite
     db = Session()
     try:
-        u = db.query(Usuario).filter_by(username=usuario["username"]).first()
+        u = db.query(Usuario).filter_by(username=uname).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
         if not verificar_password(data.password_actual, u.password):
-            raise HTTPException(status_code=400, detail="Contrasena actual incorrecta")
+            raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
         u.password = pwd_context.hash(data.password_nueva)
         db.commit()
-        return {"ok": True, "mensaje": "Contrasena actualizada"}
+        return {"ok": True, "mensaje": "Contraseña actualizada"}
     finally:
         db.close()
 
