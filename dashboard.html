@@ -1193,7 +1193,7 @@
                 inset 0 1px 0 0 rgba(255,255,255,0.05);
   }
 
-  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; table-layout: fixed; min-width: 1580px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; table-layout: fixed; min-width: 1720px; }
 
   thead tr {
     background: rgba(19,25,32,0.8);
@@ -1228,11 +1228,42 @@
   th:nth-child(6), td:nth-child(6) { width: 150px; }
   th:nth-child(7), td:nth-child(7) { width: 120px; }
   th:nth-child(8), td:nth-child(8) { width: 190px; }
-  th:nth-child(9), td:nth-child(9) { width: 130px; }
+  th:nth-child(9), td:nth-child(9) { width: 220px; min-width: 220px; }
   th:nth-child(10), td:nth-child(10) { width: 120px; }
-  th:nth-child(11), td:nth-child(11) { width: 90px; }
-  th:nth-child(12), td:nth-child(12) { width: 170px; }
-  .actions-cell { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  th:nth-child(11), td:nth-child(11) { width: 200px; min-width: 200px; }
+  th:nth-child(12), td:nth-child(12) { width: 72px; }
+  th:nth-child(13), td:nth-child(13) { width: 52px; min-width: 52px; }
+  .usb-cell { vertical-align: top; }
+  .usb-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .usb-actions .map-btn {
+    flex: 1 1 calc(50% - 3px);
+    min-width: 88px;
+    justify-content: center;
+    padding: 7px 8px;
+    font-size: 0.65rem;
+    white-space: normal;
+    line-height: 1.25;
+    text-align: center;
+  }
+  .actions-cell { display: flex; align-items: center; justify-content: center; }
+  .ts-fecha {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text);
+    line-height: 1.35;
+  }
+  .ts-hora {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text3);
+    font-family: 'Space Mono', monospace;
+    margin-top: 3px;
+  }
 
   tbody tr {
     transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1768,7 +1799,7 @@
               <th class="check-cell"><input id="select-all" class="head-check" type="checkbox" onchange="toggleSeleccionVisible(this.checked)"></th>
               <th>Equipo</th><th>Serie</th><th>Asignado a</th>
               <th>IP</th><th>MAC WiFi</th><th>Red / SSID</th><th>Estado</th>
-              <th>USB</th><th>Coordenadas</th><th>Último ping</th><th>Mapa</th><th></th>
+              <th>USB</th><th>Coordenadas</th><th>Última conexión</th><th>Mapa</th><th></th>
             </tr>
           </thead>
           <tbody id="tabla-equipos">
@@ -1899,10 +1930,38 @@
     el.className = 'status-' + state;
   }
 
-  function formatTs(iso) {
-    if (!iso) return '—';
+  function parseIsoDate(iso) {
+    if (!iso) return null;
     const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-    return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatUltimaConexion(iso) {
+    const d = parseIsoDate(iso);
+    if (!d) return '<span class="muted">Sin conexión</span>';
+    let fecha = d.toLocaleDateString('es-MX', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+    fecha = fecha.charAt(0).toUpperCase() + fecha.slice(1);
+    const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    return `<span class="ts-fecha">${fecha}</span><span class="ts-hora">${hora}</span>`;
+  }
+
+  function formatUltimaConexionTexto(iso) {
+    const d = parseIsoDate(iso);
+    if (!d) return 'Sin conexión';
+    let fecha = d.toLocaleDateString('es-MX', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+    fecha = fecha.charAt(0).toUpperCase() + fecha.slice(1);
+    const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    return `${fecha}, ${hora}`;
   }
 
   function abrirEnMaps(lat, lng) { window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank'); }
@@ -1922,7 +1981,7 @@
 
   function usbActionButton(e) {
     if (!isGestor()) return '';
-    return `<button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', true)">Bloquear USB/MTP</button> <button class="map-btn" onclick="actualizarUsbPolicy('${e.device_id}', false)">Habilitar USB/MTP</button>`;
+    return `<button type="button" class="map-btn" title="Bloquear memorias USB y celulares/MTP" onclick="actualizarUsbPolicy('${e.device_id}', true)">Bloquear USB</button><button type="button" class="map-btn" title="Habilitar memorias USB y celulares/MTP" onclick="actualizarUsbPolicy('${e.device_id}', false)">Habilitar USB</button>`;
   }
 
   function inventariarUrl(e) {
@@ -2016,14 +2075,14 @@
             <span class="badge ${e.dentro ? 'badge-dentro' : 'badge-fuera'}">${e.dentro ? 'dentro' : 'fuera'}</span>
           </div>
         </td>
-        <td>${usbLabel(e)}</td>
+        <td class="usb-cell">${usbLabel(e)}${usbActionButton(e) ? `<div class="usb-actions">${usbActionButton(e)}</div>` : ''}</td>
         <td>${e.lat
           ? `<div class="coords">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div><div class="accuracy">±${Math.round(e.accuracy)}m</div>`
           : `<span style="font-family:'Space Mono',monospace;font-size:0.65rem;color:var(--text3)">sin geo</span>`}
         </td>
-        <td><span class="ts">${formatTs(e.ultimo_ping)}</span></td>
+        <td>${formatUltimaConexion(e.ultimo_ping)}</td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})"><i class="fas fa-map-location-dot"></i> Ver</button>` : '—'}</td>
-        <td><div class="actions-cell">${usbActionButton(e)} ${isGestor() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
+        <td><div class="actions-cell">${isGestor() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
       </tr>
     `).join('');
     const selectAll = document.getElementById('select-all');
@@ -2083,7 +2142,8 @@
           MAC WiFi: ${e.wifi_mac || '—'}<br>
           Red: ${e.ssid || '—'}<br>
           ${e.online ? 'Online' : 'Offline'} / ${e.dentro ? 'Dentro' : 'Fuera'}<br>
-          ±${Math.round(e.accuracy || 0)}m · ${formatTs(e.ultimo_ping)}
+          Última conexión: ${formatUltimaConexionTexto(e.ultimo_ping)}<br>
+          ±${Math.round(e.accuracy || 0)}m
         </div>`
       });
 
