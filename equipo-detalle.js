@@ -150,7 +150,7 @@ function renderRedConectividad(asset) {
 function editar() {
   if (!assetActual) return;
   const id = encodeURIComponent(assetActual.numInventario || assetActual.id || '');
-  location.href = `/equipos?edit=${id}`;
+  location.href = `/equipos/nuevo?edit=${id}`;
 }
 
 function render(data) {
