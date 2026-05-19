@@ -289,6 +289,9 @@
     /* === Premium Pills === */
     .pill-warn{background:rgba(42,32,10,.6);border-color:rgba(210,153,34,.35);color:var(--amber-t)}
     .pill-ok{background:rgba(10,36,22,.6);border-color:rgba(63,185,80,.35);color:var(--green-t)}
+    .pill-cyan{background:rgba(57,197,207,.12);border-color:rgba(57,197,207,.35);color:var(--cyan)}
+    .pill-green{background:rgba(10,36,22,.6);border-color:rgba(63,185,80,.35);color:var(--green-t)}
+    .pill-blue{background:rgba(3,29,58,.8);border-color:rgba(56,139,253,.35);color:var(--blue-t)}
     .vinculos-col{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
     .pill{
       display:inline-block;
@@ -305,8 +308,11 @@
     }
     
     .inline{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) minmax(130px,1fr);gap:8px;min-width:0}
+    .complementos-section{display:none;margin-top:18px;padding-top:16px;border-top:1px solid rgba(99,179,237,.14)}
+    .complementos-title{font-family:'Space Mono',monospace;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--blue-t);margin-bottom:10px}
+    .complementos-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
     .form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-    #msg,#prefillMsg{display:block;margin-top:12px;min-height:18px}@media(max-width:1100px){header{height:auto;padding:12px 1rem;align-items:flex-start;flex-direction:column}.title-block{order:-1}.grid,.toolbar{grid-template-columns:1fr}main{padding:1rem}.page-hero{display:block}.tablewrap{margin-top:8px}}@media(max-width:520px){.nav a,.nav button,.btn{width:100%;text-align:center}.nav{width:100%}.inline{grid-template-columns:1fr}}
+    #msg,#prefillMsg{display:block;margin-top:12px;min-height:18px}@media(max-width:1100px){header{height:auto;padding:12px 1rem;align-items:flex-start;flex-direction:column}.title-block{order:-1}.grid,.toolbar{grid-template-columns:1fr}main{padding:1rem}.page-hero{display:block}.tablewrap{margin-top:8px}}@media(max-width:520px){.nav a,.nav button,.btn{width:100%;text-align:center}.nav{width:100%}.inline,.complementos-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -326,20 +332,9 @@
   <div class="grid">
     <div class="stack">
       <section class="card">
-        <h2 id="assetFormTitle">Agregar asset</h2><input id="editAssetId" type="hidden" />
-        <label>Tipo</label><select id="tipo"></select>
-        <label>Subtipo (opcional)</label><input id="subtipo" placeholder="Ej. PoE, 24 puertos, tickets" />
-        <label>No. inventario</label><input id="numInventario" oninput="actualizarVinculoSugerido()" />
-        <label>Vinculado a (equipo padre)</label><input id="parentInventario" placeholder="Ej. MC-LAP-001 para cargadores" />
-        <p class="muted" id="vinculoHint" style="margin-top:6px;font-size:.78rem"></p>
-        <button type="button" class="btn" id="btnCrearCargador" style="display:none;margin-top:8px" onclick="prefillCargadorVinculado()">Registrar cargador vinculado</button>
-        <label>Serie</label><input id="serie" />
-        <label>Marca</label><input id="marca" />
-        <label>Modelo</label><input id="modelo" /><label>Fecha compra</label><input id="fechaCompra" placeholder="2025-05-14" /><label>Notas</label><input id="notas" placeholder="Observaciones" />
-        <label>Asignado a</label><select id="asignado" onchange="autocompletarAsset()"><option value="">Sin asignar</option></select>
-        <label>Departamento</label><input id="departamento" />
-        <label>Puesto</label><input id="puesto" />
-        <div class="form-actions"><button class="btn primary" onclick="guardarAsset()">Guardar asset</button><button class="btn" onclick="limpiarAssetForm()">Nuevo</button></div><div class="muted" id="prefillMsg"></div><div class="muted" id="msg"></div>
+        <h2>Agregar asset</h2>
+        <p class="muted">El alta de equipos ahora se realiza con un wizard guiado de 4 pasos.</p>
+        <div class="form-actions"><a class="btn primary" href="/equipos/nuevo">Nuevo asset</a></div><div class="muted" id="prefillMsg"></div><div class="muted" id="msg"></div>
       </section>
     </div>
     <section class="card assets-card">

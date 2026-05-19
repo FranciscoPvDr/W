@@ -71,8 +71,41 @@ function asignacionOficial(a) {
     : { asignado: a.asignado || '', departamento: a.departamento || '', puesto: a.puesto || '' };
 }
 
+function complementoTexto(id, marca, modelo, serie) {
+  const main = String(id || '').trim();
+  const detalle = [marca, modelo, serie].map((v) => String(v || '').trim()).filter(Boolean).join(' ');
+  return [main, detalle].filter(Boolean).join(' · ');
+}
+
+function getJsonComplemento(a, key) {
+  const value = a[key];
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function complementoJsonTexto(item) {
+  if (!item) return '';
+  return complementoTexto(item.id || item.numInventario || item.num_inventario, item.marca, item.modelo, item.serie);
+}
+
 function vinculosHtml(a) {
   const parts = [];
+  const tipo = a.tipo || '';
+  if (tipo === 'Laptop') {
+    const cargador = complementoTexto(a.cargador_id, a.cargador_marca, a.cargador_modelo, a.cargador_serie);
+    if (cargador) parts.push(`<span class="pill pill-cyan">🔌 ${esc(cargador)}</span>`);
+  }
+  if (tipo === 'Laptop' || tipo === 'Desktop') {
+    const mouse = complementoJsonTexto(getJsonComplemento(a, 'mouse'));
+    const teclado = complementoJsonTexto(getJsonComplemento(a, 'teclado'));
+    if (mouse) parts.push(`<span class="pill pill-green">🖱️ ${esc(mouse)}</span>`);
+    if (teclado) parts.push(`<span class="pill pill-blue">⌨️ ${esc(teclado)}</span>`);
+  }
   if (a.parentInventario) {
     const ok = a.parentEnInventario !== false;
     parts.push(`<span class="pill ${ok ? 'pill-ok' : 'pill-warn'}">Padre: ${esc(a.parentInventario)}${a.parentInventarioInferido ? ' (auto)' : ''}</span>`);
@@ -129,6 +162,7 @@ function renderTabs() {
 function actualizarVinculoSugerido() {
   const hint = document.getElementById('vinculoHint');
   const btn = document.getElementById('btnCrearCargador');
+  if (!document.getElementById('tipo') || !document.getElementById('numInventario')) return;
   const num = numInventario.value.trim().toUpperCase();
   const tipoVal = tipo.value;
   if (!hint) return;
@@ -157,7 +191,15 @@ function actualizarVinculoSugerido() {
   if (btn) btn.style.display = 'none';
 }
 
+function actualizarSeccionesComplementos() {
+  if (!document.getElementById('tipo')) return;
+  const tipoVal = tipo.value;
+  const cargador = document.getElementById('cargadorSection');
+  if (cargador) cargador.style.display = tipoVal === 'Laptop' ? 'block' : 'none';
+}
+
 function prefillCargadorVinculado() {
+  if (!document.getElementById('numInventario')) return;
   const num = numInventario.value.trim().toUpperCase();
   const carg = inferirCargadorDesdeLaptop(num);
   if (!carg) {
@@ -176,6 +218,7 @@ function prefillCargadorVinculado() {
     puesto.value = lap.puesto || '';
   }
   actualizarVinculoSugerido();
+  actualizarSeccionesComplementos();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -197,13 +240,14 @@ async function cargar() {
   llenarEmpleados();
   renderTabs();
   render();
-  precargarDesdeUrl();
+  if (!editarDesdeUrl()) precargarDesdeUrl();
   if ((data.omitidos || []).length) {
     msg.textContent = `Se omitieron ${data.omitidos.length} assets con datos inválidos.`;
   }
 }
 
 function llenarEmpleados() {
+  if (!document.getElementById('asignado')) return;
   const opts = '<option value="">Sin asignar</option>' + empleados.map((e) =>
     `<option value="${esc(e.nombreCompleto)}">${e.nombreCompleto} · ${e.departamento || ''} · ${e.puesto || ''}</option>`
   ).join('');
@@ -213,6 +257,7 @@ function llenarEmpleados() {
 function precargarDesdeUrl() {
   const p = new URLSearchParams(location.search);
   if (!p.size) return;
+  if (!document.getElementById('tipo')) return;
   const term = p.get('serie') || p.get('device_id') || p.get('hostname') || '';
   if (p.get('focus') === '1') {
     q.value = term;
@@ -228,6 +273,7 @@ function precargarDesdeUrl() {
   q.value = serie.value;
   prefillMsg.textContent = `Equipo detectado por sensor${serie.value ? ` · Serie ${serie.value}` : ''}${p.get('hostname') ? ` · ${p.get('hostname')}` : ''}. Captura inventario y asignación.`;
   actualizarVinculoSugerido();
+  actualizarSeccionesComplementos();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -236,6 +282,11 @@ function empleadoOptions(actual) {
   return '<option value="">Sin asignar</option>' + empleados.map((e) =>
     `<option value="${esc(e.nombreCompleto)}" ${norm(e.nombreCompleto) === actualKey ? 'selected' : ''}>${e.nombreCompleto} · ${e.departamento || ''} · ${e.puesto || ''}</option>`
   ).join('');
+}
+
+function abrirDetalleAsset(id) {
+  if (!id) return;
+  location.href = `/equipos/${encodeURIComponent(id)}`;
 }
 
 function autocompletarAsset() {
@@ -260,13 +311,14 @@ function render() {
   let rows = assets.filter(pasaFiltroTipo).filter((a) => JSON.stringify(a).toLowerCase().includes(term));
   tbody.innerHTML = rows.map((a) => {
     const asig = asignacionOficial(a);
-    return `<tr>
+    const detalleId = a.numInventario || a.id;
+    return `<tr ${detalleId ? `onclick="abrirDetalleAsset('${esc(detalleId)}')"` : ''} style="cursor:${detalleId ? 'pointer' : 'default'}">
       <td><strong>${esc(a.numInventario || 'Sin inventario')}</strong><div class="muted">Serie: ${esc(a.serie || '—')} · ${esc(a.marca || '')} ${esc(a.modelo || '')}</div></td>
       <td>${tipoPill(a)}</td>
       <td>${vinculosHtml(a)}</td>
       <td>${asig.asignado || '<span class="muted">Sin asignar</span>'}<div class="muted">${esc(asig.departamento || '')} ${asig.puesto ? `· ${esc(asig.puesto)}` : ''}</div></td>
       <td><div class="inline"><select id="asig-${a.id}" onchange="aplicarEmpleado('${a.id}')">${empleadoOptions(asig.asignado)}</select><input id="dep-${a.id}" placeholder="Depto" value="${esc(asig.departamento)}"><input id="pto-${a.id}" placeholder="Puesto" value="${esc(asig.puesto)}"></div></td>
-      <td>
+      <td onclick="event.stopPropagation()">
         <button class="btn" onclick="editarAsset('${a.id}')">Editar</button>
         <button class="btn primary" onclick="asignar('${a.id}')">Guardar</button>
         <button class="btn" onclick="desasignar('${a.id}')">Desasignar</button>
@@ -287,6 +339,10 @@ function assetPayload() {
     modelo: modelo.value.trim(),
     fechaCompra: fechaCompra.value.trim(),
     notas: notas.value.trim(),
+    cargador_id: tipo.value === 'Laptop' ? cargador_id.value.trim() : '',
+    cargador_marca: tipo.value === 'Laptop' ? cargador_marca.value.trim() : '',
+    cargador_modelo: tipo.value === 'Laptop' ? cargador_modelo.value.trim() : '',
+    cargador_serie: tipo.value === 'Laptop' ? cargador_serie.value.trim() : '',
     asignado: asignado.value.trim(),
     departamento: departamento.value.trim(),
     puesto: puesto.value.trim(),
@@ -296,7 +352,7 @@ function assetPayload() {
 function limpiarAssetForm() {
   assetFormTitle.textContent = 'Agregar asset';
   editAssetId.value = '';
-  ['numInventario', 'serie', 'subtipo', 'parentInventario', 'marca', 'modelo', 'fechaCompra', 'notas', 'departamento', 'puesto'].forEach((id) => { window[id].value = ''; });
+  ['numInventario', 'serie', 'subtipo', 'parentInventario', 'marca', 'modelo', 'fechaCompra', 'notas', 'cargador_id', 'cargador_marca', 'cargador_modelo', 'cargador_serie', 'departamento', 'puesto'].forEach((id) => { window[id].value = ''; });
   asignado.value = '';
   tipo.value = 'Laptop';
   msg.textContent = '';
@@ -304,9 +360,15 @@ function limpiarAssetForm() {
   if (hint) hint.textContent = '';
   const btn = document.getElementById('btnCrearCargador');
   if (btn) btn.style.display = 'none';
+  actualizarSeccionesComplementos();
 }
 
 function editarAsset(id) {
+  if (!document.getElementById('editAssetId')) {
+    const a = assets.find((x) => x.id === id);
+    location.href = `/equipos/nuevo${a?.numInventario ? `?edit=${encodeURIComponent(a.numInventario)}` : ''}`;
+    return;
+  }
   const a = assets.find((x) => x.id === id);
   if (!a) return;
   assetFormTitle.textContent = 'Editar asset';
@@ -321,12 +383,29 @@ function editarAsset(id) {
   modelo.value = a.modelo || '';
   fechaCompra.value = a.fechaCompra || '';
   notas.value = a.notas || '';
+  cargador_id.value = a.cargador_id || '';
+  cargador_marca.value = a.cargador_marca || '';
+  cargador_modelo.value = a.cargador_modelo || '';
+  cargador_serie.value = a.cargador_serie || '';
   const asig = asignacionOficial(a);
   asignado.value = asig.asignado || '';
   departamento.value = asig.departamento || '';
   puesto.value = asig.puesto || '';
   actualizarVinculoSugerido();
+  actualizarSeccionesComplementos();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function editarDesdeUrl() {
+  const edit = new URLSearchParams(location.search).get('edit');
+  if (!document.getElementById('editAssetId')) return false;
+  if (!edit || !assets.length) return false;
+  const asset = assets.find((a) => norm(a.numInventario) === norm(edit) || norm(a.id) === norm(edit));
+  if (!asset) return false;
+  editarAsset(asset.id);
+  prefillMsg.textContent = `Editando asset ${asset.numInventario || asset.id}`;
+  history.replaceState(null, '', '/equipos');
+  return true;
 }
 
 async function guardarAsset() {
@@ -375,6 +454,10 @@ async function eliminar(id) {
   cargar();
 }
 
-document.getElementById('tipo')?.addEventListener('change', actualizarVinculoSugerido);
+document.getElementById('tipo')?.addEventListener('change', () => {
+  actualizarVinculoSugerido();
+  actualizarSeccionesComplementos();
+});
 initTiposSelect();
+actualizarSeccionesComplementos();
 cargar();

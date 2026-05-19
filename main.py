@@ -335,6 +335,13 @@ class AssetCreate(BaseModel):
     tipo: Optional[str] = "Laptop"
     marca: Optional[str] = ""
     modelo: Optional[str] = ""
+    estado: Optional[str] = "Activo"
+    cargador_id: Optional[str] = ""
+    cargador_marca: Optional[str] = ""
+    cargador_modelo: Optional[str] = ""
+    cargador_serie: Optional[str] = ""
+    mouse: Optional[dict] = None
+    teclado: Optional[dict] = None
     asignado: Optional[str] = ""
     departamento: Optional[str] = ""
     puesto: Optional[str] = ""
@@ -885,6 +892,9 @@ def _asset_row_to_api(row: dict) -> dict:
         "ip": _safe_firestore_text(row.get("ip")),
         "ssid": _safe_firestore_text(row.get("ssid")),
         "deviceId": _safe_firestore_text(row.get("device_id")),
+        "sistema": _safe_firestore_text(row.get("sistema")),
+        "ultimoPing": _safe_firestore_text(row.get("ultimo_ping")),
+        "actualizadoEn": _safe_firestore_text(row.get("actualizado_en")),
         "lat": row.get("lat"),
         "lng": row.get("lng"),
         "accuracy": row.get("accuracy"),
@@ -895,6 +905,17 @@ def _asset_row_to_api(row: dict) -> dict:
         "notas": _safe_firestore_text(row.get("notas")),
         "fechaCompra": _safe_firestore_text(row.get("fecha_compra")),
         "parentInventario": _safe_firestore_text(row.get("parent_inventario")),
+        "cargador_id": _safe_firestore_text(row.get("cargador_id")),
+        "cargador_marca": _safe_firestore_text(row.get("cargador_marca")),
+        "cargador_modelo": _safe_firestore_text(row.get("cargador_modelo")),
+        "cargador_serie": _safe_firestore_text(row.get("cargador_serie")),
+        "mouse": row.get("mouse"),
+        "teclado": row.get("teclado"),
+        "usb_storage_blocked": row.get("usb_storage_blocked"),
+        "usb_storage_policy": row.get("usb_storage_policy"),
+        "usb_storage_devices": row.get("usb_storage_devices"),
+        "usb_block_error": _safe_firestore_text(row.get("usb_block_error")),
+        "usb_updated_at": _safe_firestore_text(row.get("usb_updated_at")),
     }
 
 
@@ -964,6 +985,13 @@ def _asset_payload_supabase(data: AssetCreate) -> dict:
         "parent_inventario": parent,
         "marca": (data.marca or "").strip() or None,
         "modelo": (data.modelo or "").strip() or None,
+        "estado": (data.estado or "Activo").strip() or "Activo",
+        "cargador_id": (data.cargador_id or "").strip() or None,
+        "cargador_marca": (data.cargador_marca or "").strip() or None,
+        "cargador_modelo": (data.cargador_modelo or "").strip() or None,
+        "cargador_serie": (data.cargador_serie or "").strip() or None,
+        "mouse": data.mouse,
+        "teclado": data.teclado,
         "asignado": (data.asignado or "").strip() or None,
         "departamento": (data.departamento or "").strip() or None,
         "puesto": (data.puesto or "").strip() or None,
@@ -1310,6 +1338,29 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
         resultado = {"assets": [], "omitidos": [{"error": str(e)}]}
     _cache_set("assets", resultado)
     return resultado
+
+
+@app.get("/api/assets/by-inventario/{num_inventario}")
+def obtener_asset_por_inventario(num_inventario: str, usuario=Depends(get_usuario_actual)):
+    rows = _supabase_request(
+        "GET",
+        "equipos",
+        params={"select": "*", "num_inventario": f"eq.{num_inventario}", "limit": "1"},
+    ) or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Asset no encontrado")
+    asset = _asset_row_to_api(rows[0])
+    monitor = None
+    asignado = (asset.get("asignado") or "").strip()
+    if asignado:
+        monitors = _supabase_request(
+            "GET",
+            "equipos",
+            params={"select": "*", "tipo": "eq.Monitor", "asignado": f"eq.{asignado}", "limit": "1"},
+        ) or []
+        if monitors:
+            monitor = _asset_row_to_api(monitors[0])
+    return {"asset": asset, "monitor": monitor}
 
 
 @app.post("/api/assets")
@@ -2154,6 +2205,16 @@ def equipos_page():
     return FileResponse("equipos.html")
 
 
+@app.get("/equipos/nuevo")
+def equipos_nuevo_page():
+    return FileResponse("equipos-nuevo.html")
+
+
+@app.get("/equipos/{num_inventario}")
+def equipo_detalle_page(num_inventario: str):
+    return FileResponse("equipo-detalle.html")
+
+
 @app.get("/usuarios")
 def usuarios_page():
     return FileResponse("usuarios.html")
@@ -2187,6 +2248,16 @@ def auth_session_js():
 @app.get("/equipos-assets.js")
 def equipos_assets_js():
     return FileResponse("equipos-assets.js", media_type="application/javascript")
+
+
+@app.get("/equipo-detalle.js")
+def equipo_detalle_js():
+    return FileResponse("equipo-detalle.js", media_type="application/javascript")
+
+
+@app.get("/equipos-nuevo.js")
+def equipos_nuevo_js():
+    return FileResponse("equipos-nuevo.js", media_type="application/javascript")
 
 
 @app.get("/")
