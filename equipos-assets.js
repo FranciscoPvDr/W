@@ -93,37 +93,14 @@ function complementoJsonTexto(item) {
   return complementoTexto(item.id || item.numInventario || item.num_inventario, item.marca, item.modelo, item.serie);
 }
 
-function vinculosHtml(a) {
-  const parts = [];
-  const tipo = a.tipo || '';
-  if (tipo === 'Laptop') {
-    const cargador = complementoTexto(a.cargador_id, a.cargador_marca, a.cargador_modelo, a.cargador_serie);
-    if (cargador) parts.push(`<span class="pill pill-cyan">🔌 ${esc(cargador)}</span>`);
-  }
-  if (tipo === 'Laptop' || tipo === 'Desktop') {
-    const mouse = complementoJsonTexto(getJsonComplemento(a, 'mouse'));
-    const teclado = complementoJsonTexto(getJsonComplemento(a, 'teclado'));
-    if (mouse) parts.push(`<span class="pill pill-green">🖱️ ${esc(mouse)}</span>`);
-    if (teclado) parts.push(`<span class="pill pill-blue">⌨️ ${esc(teclado)}</span>`);
-  }
-  if (a.parentInventario) {
-    const ok = a.parentEnInventario !== false;
-    parts.push(`<span class="pill ${ok ? 'pill-ok' : 'pill-warn'}">Padre: ${esc(a.parentInventario)}${a.parentInventarioInferido ? ' (auto)' : ''}</span>`);
-  }
-  if (a.cargadorEsperado) {
-    if (a.cargadorRegistrado) {
-      parts.push(`<span class="pill pill-ok">Cargador: ${esc(a.cargadorEsperado)}</span>`);
-    } else {
-      parts.push(`<span class="pill pill-warn">Falta cargador: ${esc(a.cargadorEsperado)}</span>`);
-    }
-  }
-  if (a.accesorios && a.accesorios.length) {
-    a.accesorios.forEach((h) => {
-      parts.push(`<span class="pill pill-ok">${esc(h.tipo || 'Acc.')}: ${esc(h.numInventario || h.id)}</span>`);
-    });
-  }
-  if (!parts.length) return '<span class="muted">—</span>';
-  return `<div class="vinculos-col">${parts.join('')}</div>`;
+function estadoPill(estado) {
+  const label = String(estado || 'Activo').trim() || 'Activo';
+  const n = norm(label);
+  let cls = 'status-activo';
+  if (n.includes('DISPONIBLE')) cls = 'status-disponible';
+  if (n.includes('REPAR')) cls = 'status-reparacion';
+  if (n.includes('FUERA')) cls = 'status-fuera';
+  return `<span class="status-pill ${cls}">${esc(label)}</span>`;
 }
 
 function tipoPill(a) {
@@ -315,17 +292,14 @@ function render() {
     return `<tr ${detalleId ? `onclick="abrirDetalleAsset('${esc(detalleId)}')"` : ''} style="cursor:${detalleId ? 'pointer' : 'default'}">
       <td><strong>${esc(a.numInventario || 'Sin inventario')}</strong><div class="muted">Serie: ${esc(a.serie || '—')} · ${esc(a.marca || '')} ${esc(a.modelo || '')}</div></td>
       <td>${tipoPill(a)}</td>
-      <td>${vinculosHtml(a)}</td>
+      <td>${estadoPill(a.estado)}</td>
       <td>${asig.asignado || '<span class="muted">Sin asignar</span>'}<div class="muted">${esc(asig.departamento || '')} ${asig.puesto ? `· ${esc(asig.puesto)}` : ''}</div></td>
-      <td><div class="inline"><select id="asig-${a.id}" onchange="aplicarEmpleado('${a.id}')">${empleadoOptions(asig.asignado)}</select><input id="dep-${a.id}" placeholder="Depto" value="${esc(asig.departamento)}"><input id="pto-${a.id}" placeholder="Puesto" value="${esc(asig.puesto)}"></div></td>
       <td onclick="event.stopPropagation()">
         <button class="btn" onclick="editarAsset('${a.id}')">Editar</button>
-        <button class="btn primary" onclick="asignar('${a.id}')">Guardar</button>
-        <button class="btn" onclick="desasignar('${a.id}')">Desasignar</button>
         <button class="btn danger" onclick="eliminar('${a.id}')">Eliminar</button>
       </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6">Sin assets</td></tr>';
+  }).join('') || '<tr><td colspan="5">Sin assets</td></tr>';
 }
 
 function assetPayload() {

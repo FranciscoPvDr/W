@@ -273,26 +273,24 @@
     tbody tr:hover td{
       border-bottom-color:rgba(56,139,253,.15);
     }
-    .grid{grid-template-columns:minmax(320px,380px) minmax(0,1fr)}
+    .grid{grid-template-columns:1fr}
     .assets-card{min-width:0}
-    th:nth-child(1),td:nth-child(1){width:200px}
-    th:nth-child(2),td:nth-child(2){width:120px}
-    th:nth-child(3),td:nth-child(3){width:200px}
-    th:nth-child(4),td:nth-child(4){width:160px}
-    th:nth-child(5),td:nth-child(5){width:340px}
-    th:nth-child(6),td:nth-child(6){width:280px}
-    td:nth-child(6) .btn{
+    th:nth-child(1),td:nth-child(1){width:260px}
+    th:nth-child(2),td:nth-child(2){width:130px}
+    th:nth-child(3),td:nth-child(3){width:140px}
+    th:nth-child(4),td:nth-child(4){width:240px}
+    th:nth-child(5),td:nth-child(5){width:220px}
+    td:nth-child(5) .btn{
       margin:0 6px 6px 0;
       white-space:nowrap;
     }
     
     /* === Premium Pills === */
-    .pill-warn{background:rgba(42,32,10,.6);border-color:rgba(210,153,34,.35);color:var(--amber-t)}
-    .pill-ok{background:rgba(10,36,22,.6);border-color:rgba(63,185,80,.35);color:var(--green-t)}
-    .pill-cyan{background:rgba(57,197,207,.12);border-color:rgba(57,197,207,.35);color:var(--cyan)}
-    .pill-green{background:rgba(10,36,22,.6);border-color:rgba(63,185,80,.35);color:var(--green-t)}
-    .pill-blue{background:rgba(3,29,58,.8);border-color:rgba(56,139,253,.35);color:var(--blue-t)}
-    .vinculos-col{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+    .status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;border:1px solid rgba(99,179,237,.18);font-family:'Space Mono',monospace;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+    .status-activo{background:rgba(10,36,22,.45);border-color:rgba(63,185,80,.28);color:var(--green-t)}
+    .status-disponible{background:rgba(3,29,58,.65);border-color:rgba(56,139,253,.32);color:var(--blue-t)}
+    .status-reparacion{background:rgba(42,32,10,.55);border-color:rgba(210,153,34,.34);color:var(--amber-t)}
+    .status-fuera{background:rgba(42,10,10,.55);border-color:rgba(248,81,73,.32);color:var(--red-t)}
     .pill{
       display:inline-block;
       padding:5px 11px;
@@ -330,20 +328,15 @@
     </div>
   </section>
   <div class="grid">
-    <div class="stack">
-      <section class="card">
-        <h2>Agregar asset</h2>
-        <p class="muted">El alta de equipos ahora se realiza con un wizard guiado de 4 pasos.</p>
-        <div class="form-actions"><a class="btn primary" href="/equipos/nuevo">Nuevo asset</a></div><div class="muted" id="prefillMsg"></div><div class="muted" id="msg"></div>
-      </section>
-    </div>
     <section class="card assets-card">
       <div class="toolbar">
-        <div><h2>Assets por tipo</h2><div class="muted">CÃ³mputo, infraestructura (switches, APsâ€¦) y vÃ­nculos laptopâ†”cargador.</div></div>
+        <div><h2>Inventario de activos</h2><div class="muted">Consulta, filtra y administra los activos registrados.</div></div>
+        <div class="form-actions"><a class="btn primary" href="/equipos/nuevo">+ Nuevo asset</a></div>
         <div><label>Buscar</label><input id="q" placeholder="Serie, inventario, asignado..." oninput="render()" /></div>
       </div>
       <div id="tabs" class="tabs"></div>
-      <div class="tablewrap"><table><thead><tr><th>Asset</th><th>Tipo</th><th>Vínculos</th><th>Asignacion</th><th>Reasignar</th><th>Acciones</th></tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="tablewrap"><table><thead><tr><th>Asset</th><th>Tipo</th><th>Estado</th><th>Asignación</th><th>Acciones</th></tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="muted" id="prefillMsg"></div><div class="muted" id="msg"></div>
     </section>
   </div>
 </main>
