@@ -94,7 +94,9 @@ function complementoJsonTexto(item) {
 }
 
 function estadoPill(estado) {
-  const label = String(estado || 'Activo').trim() || 'Activo';
+  const raw = String(estado || 'Activo').trim() || 'Activo';
+  const rawNorm = norm(raw);
+  const label = rawNorm.includes('FUERA DEL PARQUE') ? 'Activo' : raw;
   const n = norm(label);
   let cls = 'status-activo';
   if (n.includes('DISPONIBLE')) cls = 'status-disponible';
