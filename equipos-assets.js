@@ -366,7 +366,7 @@ function limpiarAssetForm() {
 function editarAsset(id) {
   if (!document.getElementById('editAssetId')) {
     const a = assets.find((x) => x.id === id);
-    location.href = `/equipos/nuevo${a?.numInventario ? `?edit=${encodeURIComponent(a.numInventario)}` : ''}`;
+    location.href = `/equipos${a?.numInventario ? `?edit=${encodeURIComponent(a.numInventario)}` : ''}`;
     return;
   }
   const a = assets.find((x) => x.id === id);
