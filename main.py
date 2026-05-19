@@ -339,6 +339,7 @@ class AssetCreate(BaseModel):
     departamento: Optional[str] = ""
     puesto: Optional[str] = ""
     subtipo: Optional[str] = ""
+    parentInventario: Optional[str] = ""
     notas: Optional[str] = ""
     fechaCompra: Optional[str] = ""
 
@@ -444,6 +445,82 @@ def _buscar_asset_supabase_por_serie(serie: str):
 
 def _asset_tipo_normalizado(row: dict) -> str:
     return str(row.get("tipo") or "").strip().lower()
+
+
+def _inferir_cargador_desde_laptop(num_inventario: str) -> Optional[str]:
+    """Convención: MC-LAP-001 → MC-CARG-001."""
+    num = (num_inventario or "").strip().upper()
+    m = re.match(r"^(.+)-LAP-(\d+)$", num, re.I)
+    if m:
+        return f"{m.group(1)}-CARG-{m.group(2)}"
+    return None
+
+
+def _inferir_laptop_desde_cargador(num_inventario: str) -> Optional[str]:
+    """Convención inversa: MC-CARG-001 → MC-LAP-001."""
+    num = (num_inventario or "").strip().upper()
+    m = re.match(r"^(.+)-CARG-(\d+)$", num, re.I)
+    if m:
+        return f"{m.group(1)}-LAP-{m.group(2)}"
+    return None
+
+
+def _aplicar_vinculos_asset(data: AssetCreate) -> AssetCreate:
+    num = (data.numInventario or "").strip()
+    parent = (data.parentInventario or "").strip()
+    tipo = (data.tipo or "").strip().lower()
+    if not parent and tipo == "cargador" and num:
+        inferido = _inferir_laptop_desde_cargador(num)
+        if inferido:
+            data.parentInventario = inferido
+    return data
+
+
+def _enriquecer_assets_relaciones(assets: list) -> list:
+    by_num = {}
+    for a in assets:
+        clave = (a.get("numInventario") or a.get("id") or "").strip().upper()
+        if clave:
+            by_num[clave] = a
+
+    for a in assets:
+        num = (a.get("numInventario") or "").strip().upper()
+        tipo = (a.get("tipo") or "").strip().lower()
+        parent = (a.get("parentInventario") or "").strip().upper()
+
+        if not parent and tipo == "cargador" and num:
+            inferido = _inferir_laptop_desde_cargador(num)
+            if inferido:
+                a["parentInventario"] = inferido
+                a["parentInventarioInferido"] = True
+                parent = inferido
+
+        if tipo == "laptop" and num:
+            esperado = _inferir_cargador_desde_laptop(num)
+            if esperado:
+                a["cargadorEsperado"] = esperado
+                hijo = by_num.get(esperado)
+                a["cargadorRegistrado"] = bool(hijo)
+                if hijo:
+                    a["cargadorId"] = hijo.get("id")
+
+        if parent:
+            a["parentEnInventario"] = parent in by_num
+
+        hijos = [
+            {
+                "id": x.get("id"),
+                "numInventario": x.get("numInventario"),
+                "tipo": x.get("tipo"),
+            }
+            for x in assets
+            if (x.get("parentInventario") or "").strip().upper() == num
+            and x.get("id") != a.get("id")
+        ]
+        if hijos:
+            a["accesorios"] = hijos
+
+    return assets
 
 
 def _es_asset_computadora(row: dict) -> bool:
@@ -817,6 +894,7 @@ def _asset_row_to_api(row: dict) -> dict:
         "enCasa": bool(row.get("en_casa", False)),
         "notas": _safe_firestore_text(row.get("notas")),
         "fechaCompra": _safe_firestore_text(row.get("fecha_compra")),
+        "parentInventario": _safe_firestore_text(row.get("parent_inventario")),
     }
 
 
@@ -874,13 +952,16 @@ def _solicitud_row_to_api(row: dict) -> dict:
 
 
 def _asset_payload_supabase(data: AssetCreate) -> dict:
+    data = _aplicar_vinculos_asset(data)
     asset_id = (data.numInventario or data.serie or str(uuid.uuid4())).strip()
+    parent = (data.parentInventario or "").strip() or None
     return {
         "id": asset_id,
         "num_inventario": (data.numInventario or "").strip() or None,
         "serie": (data.serie or "").strip() or None,
         "tipo": (data.tipo or "Laptop").strip() or None,
         "subtipo": (data.subtipo or "").strip() or None,
+        "parent_inventario": parent,
         "marca": (data.marca or "").strip() or None,
         "modelo": (data.modelo or "").strip() or None,
         "asignado": (data.asignado or "").strip() or None,
@@ -1223,7 +1304,8 @@ def listar_assets(usuario=Depends(get_usuario_actual)):
         return cached
     try:
         rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-        resultado = {"assets": _assets_rows_to_api(rows), "omitidos": []}
+        assets = _enriquecer_assets_relaciones(_assets_rows_to_api(rows))
+        resultado = {"assets": assets, "omitidos": []}
     except Exception as e:
         resultado = {"assets": [], "omitidos": [{"error": str(e)}]}
     _cache_set("assets", resultado)
@@ -1343,7 +1425,7 @@ def actualizar_asignacion_asset(asset_id: str, data: AssetAsignacion, usuario=De
 def mobile_listar_assets():
     try:
         rows = _supabase_request("GET", "equipos", params={"select": "*"}) or []
-        return {"assets": _assets_rows_to_api(rows), "omitidos": []}
+        return {"assets": _enriquecer_assets_relaciones(_assets_rows_to_api(rows)), "omitidos": []}
     except Exception as e:
         return {"assets": [], "omitidos": [{"error": str(e)}]}
 
@@ -2100,6 +2182,11 @@ def reset_password_page():
 @app.get("/auth-session.js")
 def auth_session_js():
     return FileResponse("auth-session.js", media_type="application/javascript")
+
+
+@app.get("/equipos-assets.js")
+def equipos_assets_js():
+    return FileResponse("equipos-assets.js", media_type="application/javascript")
 
 
 @app.get("/")
