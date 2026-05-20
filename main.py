@@ -1764,8 +1764,6 @@ async def recibir_ping(data: PingRequest):
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
             equipo.usb_storage_blocked = data.usb_storage_blocked
-            if data.usb_block_error and "estado_manual_previo" in data.usb_block_error and data.usb_storage_blocked is not None:
-                equipo.usb_storage_policy = data.usb_storage_blocked
             if equipo.usb_storage_policy is None and data.usb_storage_blocked is not None:
                 equipo.usb_storage_policy = data.usb_storage_blocked
             equipo.usb_storage_devices = data.usb_storage_devices
