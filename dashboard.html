@@ -1846,7 +1846,7 @@
     const navUsuarios = document.getElementById('nav-usuarios');
     if (navUsuarios && isGestor()) navUsuarios.style.display = '';
     fetchData();
-    refreshInterval = setInterval(fetchData, 30000);
+    refreshInterval = setInterval(fetchData, 60000);
   }
 
   async function doLogin() {
@@ -1879,7 +1879,7 @@
       const navUsuarios = document.getElementById('nav-usuarios');
       if (navUsuarios && isGestor()) navUsuarios.style.display = '';
       fetchData();
-      refreshInterval = setInterval(fetchData, 30000);
+      refreshInterval = setInterval(fetchData, 60000);
     } catch {
       errEl.textContent = 'No se pudo conectar al servidor';
       errEl.style.display = 'block';
@@ -2214,6 +2214,8 @@
 
   async function fetchData() {
     if (!TOKEN) return;
+    if (fetchingData) return;
+    fetchingData = true;
     setStatus('loading', 'actualizando...');
     try {
       const [resEquipos, resAlertas] = await Promise.all([
@@ -2270,6 +2272,7 @@
       setStatus('ok', 'conectado');
       document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-MX');
     } catch { setStatus('err', 'sin conexión'); }
+    finally { fetchingData = false; }
   }
 
   // ══════════════════════════════════════════════════════════════

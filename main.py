@@ -697,6 +697,14 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
         print(f"No se pudo sincronizar USB a Supabase para serie {serie}: {e}")
 
 
+def debe_sincronizar_externo(device_id: str, ahora: datetime, intervalo_minutos: int = 10) -> bool:
+    try:
+        slot = sum(ord(c) for c in str(device_id or "")) % max(1, intervalo_minutos)
+        return ahora.minute % max(1, intervalo_minutos) == slot
+    except Exception:
+        return False
+
+
 def _obtener_asignacion_firestore(equipo: Equipo):
     """
     Obtiene datos de asignación desde Firestore, priorizando match por serie.
@@ -1753,7 +1761,24 @@ async def recibir_ping(data: PingRequest):
         if not equipo:
             equipo = db.query(Equipo).filter_by(device_id=data.device_id).first()
 
+        sync_externo = False
         if equipo:
+            estado_externo_cambio = (
+                equipo.device_id != data.device_id or
+                (serial_limpio and equipo.serial_number != serial_limpio) or
+                equipo.hostname != data.hostname or
+                equipo.ip != data.ip or
+                equipo.wifi_mac != (data.wifi_mac or "") or
+                equipo.ssid != (data.ssid or "") or
+                equipo.dentro != data.dentro or
+                equipo.sistema != (data.sistema or "") or
+                equipo.usb_storage_blocked != data.usb_storage_blocked or
+                equipo.usb_storage_devices != data.usb_storage_devices or
+                equipo.usb_block_error != (data.usb_block_error or "")
+            )
+            if lat:
+                estado_externo_cambio = estado_externo_cambio or equipo.lat != lat or equipo.lng != lng or equipo.accuracy != accuracy
+            sync_externo = estado_externo_cambio or debe_sincronizar_externo(data.device_id, ahora)
             if serial_limpio:
                 equipo.serial_number = serial_limpio
             equipo.hostname    = data.hostname
@@ -1795,10 +1820,12 @@ async def recibir_ping(data: PingRequest):
                 usb_updated_at = ahora
             )
             db.add(equipo)
+            sync_externo = True
 
         db.commit()
-        sync_equipo_to_firestore(equipo, data.serial_number)
-        sync_equipo_usb_to_supabase(equipo)
+        if sync_externo:
+            sync_equipo_to_firestore(equipo, data.serial_number)
+            sync_equipo_usb_to_supabase(equipo)
         geo = f"lat:{lat:.4f},lng:{lng:.4f},acc:{accuracy:.0f}m" if lat else "sin geo"
         print(f"Ping [{data.hostname}] {'DENTRO' if data.dentro else 'FUERA'} | {geo}")
         return {"ok": True, "mensaje": "Ping registrado", "geo": {"lat": lat, "lng": lng, "accuracy": accuracy}}
