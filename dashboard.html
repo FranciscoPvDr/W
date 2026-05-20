@@ -1828,7 +1828,7 @@
   const GOOGLE_API_KEY = 'AIzaSyCcGAhqaxgQRMxilFd5sYXIKvIzQq1DeKE';
 
   let TOKEN = null, currentFilter = 'todos', allEquipos = [], CURRENT_USERNAME = '';
-  let refreshInterval = null, map = null, markers = [];
+  let refreshInterval = null, map = null, markers = [], fetchingData = false;
   let currentTab = 'lista', offlineAlertMinutes = 10;
   let selectedEquipos = new Set();
 
