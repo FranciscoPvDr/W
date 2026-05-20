@@ -1766,9 +1766,9 @@ async def recibir_ping(data: PingRequest):
             equipo.usb_storage_blocked = data.usb_storage_blocked
             if equipo.usb_storage_policy is None and data.usb_storage_blocked is not None:
                 equipo.usb_storage_policy = data.usb_storage_blocked
+                equipo.usb_updated_at = ahora
             equipo.usb_storage_devices = data.usb_storage_devices
             equipo.usb_block_error = data.usb_block_error or ""
-            equipo.usb_updated_at = ahora
             if lat:
                 equipo.lat      = lat
                 equipo.lng      = lng
