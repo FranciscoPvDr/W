@@ -1987,7 +1987,8 @@
   function inventariarUrl(e) {
     const params = new URLSearchParams({
       inventariar: '1',
-      serie: e.serial_number || '',
+      serie: e.serial_number || e.serie || '',
+      serial_number: e.serial_number || e.serie || '',
       device_id: e.device_id || '',
       hostname: e.hostname || '',
       ip: e.ip || '',

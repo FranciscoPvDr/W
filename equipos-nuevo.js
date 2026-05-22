@@ -409,7 +409,7 @@ function aplicarPrefillInventario() {
   renderTipos();
   renderSubtipos();
   renderMarcaModelo();
-  setValue('serie', params.get('serie') || '');
+  setValue('serie', params.get('serie') || params.get('serial_number') || params.get('serial') || '');
   setValue('estado', 'Activo');
   const partes = [];
   const hostname = params.get('hostname') || '';
