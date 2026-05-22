@@ -1932,7 +1932,9 @@
 
   function parseIsoDate(iso) {
     if (!iso) return null;
-    const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+    const raw = String(iso).trim();
+    const hasTimezone = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+    const d = new Date(raw + (hasTimezone ? '' : 'Z'));
     return isNaN(d.getTime()) ? null : d;
   }
 

@@ -411,16 +411,6 @@ function aplicarPrefillInventario() {
   renderMarcaModelo();
   setValue('serie', params.get('serie') || params.get('serial_number') || params.get('serial') || '');
   setValue('estado', 'Activo');
-  const partes = [];
-  const hostname = params.get('hostname') || '';
-  const deviceId = params.get('device_id') || '';
-  const ip = params.get('ip') || '';
-  const ssid = params.get('ssid') || '';
-  if (hostname) partes.push(`Hostname detectado: ${hostname}`);
-  if (deviceId) partes.push(`Device ID: ${deviceId}`);
-  if (ip) partes.push(`IP detectada: ${ip}`);
-  if (ssid) partes.push(`SSID detectado: ${ssid}`);
-  if (partes.length && !notas.value.trim()) setValue('notas', partes.join('\n'));
   step = 2;
   setWizardMode();
   mostrarStep();

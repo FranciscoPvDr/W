@@ -1969,6 +1969,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 if asset:
                     estado_asset_norm = str(asset.get("estado") or "").strip().lower()
                     num_asset = _safe_firestore_text(asset.get("num_inventario"))
+                    item["asset_id"] = _safe_firestore_text(asset.get("id"))
                     item["numInventario"] = num_asset
                     item["asignado"] = _safe_firestore_text(asset.get("asignado"))
                     item["departamento"] = _safe_firestore_text(asset.get("departamento"))
@@ -2012,6 +2013,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 if not clave or clave in resultado_por_clave:
                     continue
                 resultado_por_clave[clave] = {
+                    "asset_id": _safe_firestore_text(asset.get("id")),
                     "device_id": _safe_firestore_text(asset.get("device_id") or asset.get("id")),
                     "serial_number": serie,
                     "numInventario": _safe_firestore_text(asset.get("num_inventario")),
@@ -2124,15 +2126,27 @@ def eliminar_equipo(device_id: str, usuario=Depends(get_usuario_actual)):
     db = Session()
     try:
         equipo = db.query(Equipo).filter_by(device_id=device_id).first()
-        if not equipo:
-            raise HTTPException(status_code=404, detail="Equipo no encontrado")
-        # Borrar historial de pings asociado
+        serial_number = equipo.serial_number if equipo else ""
+        hostname = equipo.hostname if equipo else device_id
         db.query(PingLog).filter_by(device_id=device_id).delete()
-        _eliminar_doc_firestore_equipo(equipo)
-        db.delete(equipo)
+        if equipo:
+            _eliminar_doc_firestore_equipo(equipo)
+            db.delete(equipo)
         db.commit()
-        print(f"Equipo eliminado: {device_id} ({equipo.hostname})")
-        return {"ok": True, "mensaje": f"Equipo {equipo.hostname} eliminado correctamente"}
+        deleted_supabase = False
+        filtros = [{"device_id": f"eq.{device_id}"}, {"id": f"eq.{device_id}"}]
+        if serial_number:
+            filtros.append({"serie": f"eq.{serial_number}"})
+        for params in filtros:
+            try:
+                _supabase_request("DELETE", "equipos", params=params, prefer="return=minimal")
+                deleted_supabase = True
+            except Exception as e:
+                print(f"No se pudo eliminar equipo en Supabase con {params}: {e}")
+        if not equipo and not deleted_supabase:
+            raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        print(f"Equipo eliminado: {device_id} ({hostname})")
+        return {"ok": True, "mensaje": f"Equipo {hostname} eliminado correctamente"}
     finally:
         db.close()
 
