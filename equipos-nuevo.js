@@ -401,6 +401,33 @@ async function cargarEdicion() {
   mostrarStep();
 }
 
+function aplicarPrefillInventario() {
+  if (editingAsset) return;
+  const params = new URLSearchParams(location.search);
+  if (params.get('inventariar') !== '1') return;
+  selectedTipo = 'Laptop';
+  renderTipos();
+  renderSubtipos();
+  renderMarcaModelo();
+  setValue('serie', params.get('serie') || '');
+  setValue('estado', 'Activo');
+  const partes = [];
+  const hostname = params.get('hostname') || '';
+  const deviceId = params.get('device_id') || '';
+  const ip = params.get('ip') || '';
+  const ssid = params.get('ssid') || '';
+  if (hostname) partes.push(`Hostname detectado: ${hostname}`);
+  if (deviceId) partes.push(`Device ID: ${deviceId}`);
+  if (ip) partes.push(`IP detectada: ${ip}`);
+  if (ssid) partes.push(`SSID detectado: ${ssid}`);
+  if (partes.length && !notas.value.trim()) setValue('notas', partes.join('
+'));
+  step = 2;
+  setWizardMode();
+  mostrarStep();
+  inventarioHint.textContent = 'Datos precargados desde el sensor. Completa el número de inventario y guarda.';
+}
+
 async function cargarDatos() {
   const [resAssets, resEmps] = await Promise.all([
     fetch(`${SERVER}/api/assets`, { headers: headers() }),
@@ -414,6 +441,7 @@ async function cargarDatos() {
   renderSubtipos();
   renderMarcaModelo();
   await cargarEdicion();
+  aplicarPrefillInventario();
   sugerirInventario();
 }
 
