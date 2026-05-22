@@ -1997,15 +1997,8 @@
   }
 
   function equipoUrl(e) {
-    const params = new URLSearchParams({
-      focus: '1',
-      serie: e.serial_number || '',
-      device_id: e.device_id || '',
-      hostname: e.hostname || '',
-      ip: e.ip || '',
-      ssid: e.ssid || ''
-    });
-    return `/equipos?${params.toString()}`;
+    if (e.inventariado && e.numInventario) return `/equipos/${encodeURIComponent(e.numInventario)}`;
+    return inventariarUrl(e);
   }
 
   function updateBulkActions() {

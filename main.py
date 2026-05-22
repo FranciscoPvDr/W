@@ -1404,6 +1404,12 @@ def obtener_asset_por_inventario(num_inventario: str, usuario=Depends(get_usuari
         params={"select": "*", "num_inventario": f"eq.{num_inventario}", "limit": "1"},
     ) or []
     if not rows:
+        rows = _supabase_request(
+            "GET",
+            "equipos",
+            params={"select": "*", "id": f"eq.{num_inventario}", "limit": "1"},
+        ) or []
+    if not rows:
         raise HTTPException(status_code=404, detail="Asset no encontrado")
     asset = _asset_row_to_api(rows[0])
     monitor = None
@@ -1961,6 +1967,13 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
             for clave, item in list(resultado_por_clave.items()):
                 asset = assets_por_clave.get(clave)
                 if asset:
+                    estado_asset_norm = str(asset.get("estado") or "").strip().lower()
+                    num_asset = _safe_firestore_text(asset.get("num_inventario"))
+                    item["numInventario"] = num_asset
+                    item["asignado"] = _safe_firestore_text(asset.get("asignado"))
+                    item["departamento"] = _safe_firestore_text(asset.get("departamento"))
+                    item["puesto"] = _safe_firestore_text(asset.get("puesto"))
+                    item["inventariado"] = bool(num_asset) and "no inventariado" not in estado_asset_norm
                     repair_payload = {}
                     if item.get("ip") and item.get("ip") != asset.get("ip"):
                         repair_payload["ip"] = item.get("ip")
@@ -2005,7 +2018,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                     "asignado": _safe_firestore_text(asset.get("asignado")),
                     "departamento": _safe_firestore_text(asset.get("departamento")),
                     "puesto": _safe_firestore_text(asset.get("puesto")),
-                    "inventariado": True,
+                    "inventariado": bool(_safe_firestore_text(asset.get("num_inventario"))) and "no inventariado" not in str(asset.get("estado") or "").strip().lower(),
                     "hostname": _safe_firestore_text(asset.get("hostname")),
                     "ip": _safe_firestore_text(asset.get("ip")),
                     "wifi_mac": _normalizar_mac_wifi(asset.get("wifi_mac")),
