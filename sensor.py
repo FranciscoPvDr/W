@@ -382,6 +382,36 @@ def get_wifi_ssid():
     return ""
 
 
+def get_wifi_mac():
+    try:
+        sistema = platform.system()
+        if sistema == "Windows":
+            output = subprocess.check_output(
+                ["netsh", "wlan", "show", "interfaces"],
+                text=True, stderr=subprocess.DEVNULL, encoding="utf-8", errors="ignore",
+                creationflags=CREATE_NO_WINDOW
+            )
+            for line in output.splitlines():
+                if "Dirección física" in line or "Physical address" in line:
+                    mac = ":".join(line.split(":")[1:]).strip().upper().replace("-", ":")
+                    if re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", mac):
+                        return mac
+        elif sistema == "Darwin":
+            output = subprocess.check_output(["networksetup", "-listallhardwareports"], text=True)
+            lines = output.splitlines()
+            for idx, line in enumerate(lines):
+                if "Wi-Fi" in line or "AirPort" in line:
+                    for subline in lines[idx:idx + 5]:
+                        if "Ethernet Address:" in subline:
+                            return subline.split(":", 1)[1].strip().upper()
+        elif sistema == "Linux":
+            output = subprocess.check_output(["sh", "-c", "cat /sys/class/net/wl*/address 2>/dev/null | head -n 1"], text=True)
+            return output.strip().upper()
+    except Exception:
+        pass
+    return ""
+
+
 def scan_wifi_networks():
     """
     Escanea todas las redes WiFi cercanas y devuelve lista de
@@ -528,12 +558,14 @@ def get_serial_number():
 
 
 def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_networks, usb_status):
+    wifi_mac = get_wifi_mac()
     payload = {
         "device_id":     device_id,
         "serial_number": serial_number,
         "serial_source": serial_source,
         "hostname":      get_hostname(),
         "ip":            ip,
+        "wifi_mac":      wifi_mac,
         "ssid":          ssid,
         "dentro":        dentro,
         "sistema":       platform.system(),
@@ -554,7 +586,7 @@ def send_ping(device_id, serial_number, serial_source, ip, ssid, dentro, wifi_ne
         usb_txt = f"USB blocked={usb_status.get('usb_storage_blocked')} devices={usb_status.get('usb_storage_devices')}"
         if usb_status.get("usb_block_error"):
             usb_txt += f" error={usb_status.get('usb_block_error')}"
-        log(f"{estado} | IP: {ip} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | {usb_txt} | HTTP {resp.status_code}")
+        log(f"{estado} | IP: {ip} | MAC WiFi: {wifi_mac or 'N/A'} | SSID: {ssid or 'N/A'} | Redes: {len(wifi_networks)} | {usb_txt} | HTTP {resp.status_code}")
     except requests.exceptions.ConnectionError:
         log(f"Sin conexion al servidor - reintentando en {PING_INTERVAL}s")
     except Exception as e:
