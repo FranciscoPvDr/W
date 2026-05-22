@@ -674,26 +674,30 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
     try:
         asset = _buscar_asset_supabase_por_serie(serie)
         params = {"id": f"eq.{asset.get('id')}"} if asset and asset.get("id") else {"serie": f"eq.{serie}"}
+        payload = {
+            "device_id": equipo.device_id,
+            "hostname": equipo.hostname,
+            "dentro": equipo.dentro,
+            "sistema": equipo.sistema,
+            "ultimo_ping": equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None,
+            "usb_storage_blocked": equipo.usb_storage_blocked,
+            "usb_storage_policy": equipo.usb_storage_policy,
+            "usb_storage_devices": equipo.usb_storage_devices,
+            "usb_block_error": equipo.usb_block_error or "",
+            "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
+            "actualizado_en": datetime.utcnow().isoformat(),
+        }
+        if equipo.ip:
+            payload["ip"] = equipo.ip
+        if equipo.wifi_mac:
+            payload["wifi_mac"] = equipo.wifi_mac
+        if equipo.ssid:
+            payload["ssid"] = equipo.ssid
         _supabase_request(
             "PATCH",
             "equipos",
             params=params,
-            json={
-                "device_id": equipo.device_id,
-                "hostname": equipo.hostname,
-                "ip": equipo.ip,
-                "wifi_mac": equipo.wifi_mac or "",
-                "ssid": equipo.ssid,
-                "dentro": equipo.dentro,
-                "sistema": equipo.sistema,
-                "ultimo_ping": equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None,
-                "usb_storage_blocked": equipo.usb_storage_blocked,
-                "usb_storage_policy": equipo.usb_storage_policy,
-                "usb_storage_devices": equipo.usb_storage_devices,
-                "usb_block_error": equipo.usb_block_error or "",
-                "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
-                "actualizado_en": datetime.utcnow().isoformat(),
-            },
+            json=payload,
             prefer="return=representation",
         )
     except Exception as e:
@@ -1764,6 +1768,8 @@ async def recibir_ping(data: PingRequest):
         if not equipo:
             equipo = db.query(Equipo).filter_by(device_id=data.device_id).first()
 
+        ip_actual = (data.ip or "").strip()
+        ssid_actual = (data.ssid or "").strip()
         wifi_mac_actual = (data.wifi_mac or "").strip()
         sync_externo = False
         if equipo:
@@ -1771,9 +1777,9 @@ async def recibir_ping(data: PingRequest):
                 equipo.device_id != data.device_id or
                 (serial_limpio and equipo.serial_number != serial_limpio) or
                 equipo.hostname != data.hostname or
-                equipo.ip != data.ip or
+                (bool(ip_actual) and equipo.ip != ip_actual) or
                 (bool(wifi_mac_actual) and equipo.wifi_mac != wifi_mac_actual) or
-                equipo.ssid != (data.ssid or "") or
+                (bool(ssid_actual) and equipo.ssid != ssid_actual) or
                 equipo.dentro != data.dentro or
                 equipo.sistema != (data.sistema or "") or
                 equipo.usb_storage_blocked != data.usb_storage_blocked or
@@ -1786,10 +1792,12 @@ async def recibir_ping(data: PingRequest):
             if serial_limpio:
                 equipo.serial_number = serial_limpio
             equipo.hostname    = data.hostname
-            equipo.ip          = data.ip
+            if ip_actual:
+                equipo.ip = ip_actual
             if wifi_mac_actual:
                 equipo.wifi_mac = wifi_mac_actual
-            equipo.ssid        = data.ssid or ""
+            if ssid_actual:
+                equipo.ssid = ssid_actual
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
             equipo.ultimo_ping = ahora
@@ -1808,9 +1816,9 @@ async def recibir_ping(data: PingRequest):
                 device_id   = data.device_id,
                 serial_number = serial_limpio,
                 hostname    = data.hostname,
-                ip          = data.ip,
+                ip          = ip_actual,
                 wifi_mac    = wifi_mac_actual,
-                ssid        = data.ssid or "",
+                ssid        = ssid_actual,
                 dentro      = data.dentro,
                 sistema     = data.sistema or "",
                 ultimo_ping = ahora,
@@ -1905,9 +1913,15 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
             for clave, item in list(resultado_por_clave.items()):
                 asset = assets_por_clave.get(clave)
                 if asset:
+                    if not item.get("ip") and asset.get("ip"):
+                        item["ip"] = _safe_firestore_text(asset.get("ip"))
                     if not item.get("wifi_mac") and asset.get("wifi_mac"):
                         item["wifi_mac"] = _safe_firestore_text(asset.get("wifi_mac"))
-                    if not item.get("ultimo_ping") and (asset.get("ultimo_ping") or asset.get("actualizado_en")):
+                    if not item.get("ssid") and asset.get("ssid"):
+                        item["ssid"] = _safe_firestore_text(asset.get("ssid"))
+                    if asset.get("ultimo_ping") and (not item.get("ultimo_ping") or str(asset.get("ultimo_ping")) > str(item.get("ultimo_ping"))):
+                        item["ultimo_ping"] = asset.get("ultimo_ping")
+                    elif not item.get("ultimo_ping") and asset.get("actualizado_en"):
                         item["ultimo_ping"] = asset.get("ultimo_ping") or asset.get("actualizado_en")
             for asset in assets_por_clave.values():
                 if not _es_asset_computadora(asset):
