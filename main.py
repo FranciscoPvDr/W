@@ -680,6 +680,7 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
                 "device_id": equipo.device_id,
                 "hostname": equipo.hostname,
                 "ip": equipo.ip,
+                "wifi_mac": equipo.wifi_mac or "",
                 "ssid": equipo.ssid,
                 "dentro": equipo.dentro,
                 "sistema": equipo.sistema,
@@ -1761,6 +1762,7 @@ async def recibir_ping(data: PingRequest):
         if not equipo:
             equipo = db.query(Equipo).filter_by(device_id=data.device_id).first()
 
+        wifi_mac_actual = (data.wifi_mac or "").strip()
         sync_externo = False
         if equipo:
             estado_externo_cambio = (
@@ -1768,7 +1770,7 @@ async def recibir_ping(data: PingRequest):
                 (serial_limpio and equipo.serial_number != serial_limpio) or
                 equipo.hostname != data.hostname or
                 equipo.ip != data.ip or
-                equipo.wifi_mac != (data.wifi_mac or "") or
+                (bool(wifi_mac_actual) and equipo.wifi_mac != wifi_mac_actual) or
                 equipo.ssid != (data.ssid or "") or
                 equipo.dentro != data.dentro or
                 equipo.sistema != (data.sistema or "") or
@@ -1783,7 +1785,8 @@ async def recibir_ping(data: PingRequest):
                 equipo.serial_number = serial_limpio
             equipo.hostname    = data.hostname
             equipo.ip          = data.ip
-            equipo.wifi_mac    = data.wifi_mac or ""
+            if wifi_mac_actual:
+                equipo.wifi_mac = wifi_mac_actual
             equipo.ssid        = data.ssid or ""
             equipo.dentro      = data.dentro
             equipo.sistema     = data.sistema or ""
@@ -1804,7 +1807,7 @@ async def recibir_ping(data: PingRequest):
                 serial_number = serial_limpio,
                 hostname    = data.hostname,
                 ip          = data.ip,
-                wifi_mac    = data.wifi_mac or "",
+                wifi_mac    = wifi_mac_actual,
                 ssid        = data.ssid or "",
                 dentro      = data.dentro,
                 sistema     = data.sistema or "",
