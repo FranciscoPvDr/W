@@ -420,8 +420,7 @@ function aplicarPrefillInventario() {
   if (deviceId) partes.push(`Device ID: ${deviceId}`);
   if (ip) partes.push(`IP detectada: ${ip}`);
   if (ssid) partes.push(`SSID detectado: ${ssid}`);
-  if (partes.length && !notas.value.trim()) setValue('notas', partes.join('
-'));
+  if (partes.length && !notas.value.trim()) setValue('notas', partes.join('\n'));
   step = 2;
   setWizardMode();
   mostrarStep();
