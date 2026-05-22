@@ -424,6 +424,16 @@ def _normalizar_serie(value: Optional[str]) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
 
 
+def _normalizar_mac_wifi(value: Optional[str]) -> str:
+    raw = str(value or "").strip().upper().replace("-", ":")
+    if not re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", raw):
+        return ""
+    partes = raw.split(":")
+    if len(set(partes)) == 1:
+        return ""
+    return raw
+
+
 def _buscar_equipo_por_serie_normalizada(db, serie: str):
     serie_norm = _normalizar_serie(serie)
     if not serie_norm:
@@ -693,17 +703,32 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
         }
         if equipo.ip:
             payload["ip"] = equipo.ip
-        if equipo.wifi_mac:
-            payload["wifi_mac"] = equipo.wifi_mac
+        wifi_mac_segura = _normalizar_mac_wifi(equipo.wifi_mac)
+        if wifi_mac_segura:
+            payload["wifi_mac"] = wifi_mac_segura
         if equipo.ssid:
             payload["ssid"] = equipo.ssid
-        _supabase_request(
-            "PATCH",
-            "equipos",
-            params=params,
-            json=payload,
-            prefer="return=representation",
-        )
+        if asset:
+            _supabase_request(
+                "PATCH",
+                "equipos",
+                params=params,
+                json=payload,
+                prefer="return=representation",
+            )
+        else:
+            payload["id"] = device_id or serie
+            payload["serie"] = serie
+            payload["num_inventario"] = ""
+            payload["tipo"] = "Laptop"
+            payload["estado"] = "No inventariado"
+            _supabase_request(
+                "POST",
+                "equipos",
+                params={"on_conflict": "id"},
+                json=payload,
+                prefer="resolution=merge-duplicates,return=representation",
+            )
     except Exception as e:
         print(f"No se pudo sincronizar USB a Supabase para serie {serie}: {e}")
 
@@ -1744,7 +1769,7 @@ async def recibir_ping(data: PingRequest):
             serial_number = (data.serial_number or "").strip(),
             hostname  = data.hostname,
             ip        = data.ip,
-            wifi_mac  = data.wifi_mac or "",
+            wifi_mac  = _normalizar_mac_wifi(data.wifi_mac),
             ssid      = data.ssid or "",
             dentro    = data.dentro,
             sistema   = data.sistema or "",
@@ -1774,7 +1799,7 @@ async def recibir_ping(data: PingRequest):
 
         ip_actual = (data.ip or "").strip()
         ssid_actual = (data.ssid or "").strip()
-        wifi_mac_actual = (data.wifi_mac or "").strip()
+        wifi_mac_actual = _normalizar_mac_wifi(data.wifi_mac)
         sync_externo = False
         if equipo:
             estado_externo_cambio = (
@@ -1887,7 +1912,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "inventariado": asignacion.get("inventariado", False),
                 "hostname":    e.hostname,
                 "ip":          e.ip,
-                "wifi_mac":    e.wifi_mac,
+                "wifi_mac":    _normalizar_mac_wifi(e.wifi_mac),
                 "ssid":        e.ssid,
                 "dentro":      e.dentro,
                 "online":      online,
@@ -1922,10 +1947,11 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                         repair_payload["ip"] = item.get("ip")
                     elif not item.get("ip") and asset.get("ip"):
                         item["ip"] = _safe_firestore_text(asset.get("ip"))
-                    if item.get("wifi_mac") and item.get("wifi_mac") != asset.get("wifi_mac"):
-                        repair_payload["wifi_mac"] = item.get("wifi_mac")
-                    elif not item.get("wifi_mac") and asset.get("wifi_mac"):
-                        item["wifi_mac"] = _safe_firestore_text(asset.get("wifi_mac"))
+                    item_wifi_mac_segura = _normalizar_mac_wifi(item.get("wifi_mac"))
+                    if item_wifi_mac_segura and item_wifi_mac_segura != asset.get("wifi_mac"):
+                        repair_payload["wifi_mac"] = item_wifi_mac_segura
+                    elif not item.get("wifi_mac") and _normalizar_mac_wifi(asset.get("wifi_mac")):
+                        item["wifi_mac"] = _normalizar_mac_wifi(asset.get("wifi_mac"))
                     if item.get("ssid") and item.get("ssid") != asset.get("ssid"):
                         repair_payload["ssid"] = item.get("ssid")
                     elif not item.get("ssid") and asset.get("ssid"):
@@ -1963,7 +1989,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                     "inventariado": True,
                     "hostname": _safe_firestore_text(asset.get("hostname")),
                     "ip": _safe_firestore_text(asset.get("ip")),
-                    "wifi_mac": _safe_firestore_text(asset.get("wifi_mac")),
+                    "wifi_mac": _normalizar_mac_wifi(asset.get("wifi_mac")),
                     "ssid": _safe_firestore_text(asset.get("ssid")),
                     "dentro": bool(asset.get("dentro", True)),
                     "online": False,

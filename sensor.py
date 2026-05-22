@@ -382,6 +382,13 @@ def get_wifi_ssid():
     return ""
 
 
+def is_valid_wifi_mac(mac):
+    mac = str(mac or "").strip().upper().replace("-", ":")
+    if not re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", mac):
+        return False
+    return len(set(mac.split(":"))) > 1
+
+
 def get_wifi_mac():
     try:
         sistema = platform.system()
@@ -394,7 +401,7 @@ def get_wifi_mac():
             for line in output.splitlines():
                 if "Dirección física" in line or "Physical address" in line:
                     mac = ":".join(line.split(":")[1:]).strip().upper().replace("-", ":")
-                    if re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", mac):
+                    if is_valid_wifi_mac(mac):
                         return mac
         elif sistema == "Darwin":
             output = subprocess.check_output(["networksetup", "-listallhardwareports"], text=True)
@@ -403,10 +410,14 @@ def get_wifi_mac():
                 if "Wi-Fi" in line or "AirPort" in line:
                     for subline in lines[idx:idx + 5]:
                         if "Ethernet Address:" in subline:
-                            return subline.split(":", 1)[1].strip().upper()
+                            mac = subline.split(":", 1)[1].strip().upper()
+                            if is_valid_wifi_mac(mac):
+                                return mac
         elif sistema == "Linux":
             output = subprocess.check_output(["sh", "-c", "cat /sys/class/net/wl*/address 2>/dev/null | head -n 1"], text=True)
-            return output.strip().upper()
+            mac = output.strip().upper()
+            if is_valid_wifi_mac(mac):
+                return mac
     except Exception:
         pass
     return ""
