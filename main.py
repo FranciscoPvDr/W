@@ -445,6 +445,20 @@ def _buscar_equipo_por_serie_normalizada(db, serie: str):
     return None
 
 
+def _ultima_mac_wifi_valida(db, device_id: Optional[str] = None, serie: Optional[str] = None) -> str:
+    serie_norm = _normalizar_serie(serie)
+    query = db.query(PingLog).order_by(PingLog.timestamp.desc()).limit(200)
+    for log in query.all():
+        same_device = bool(device_id and log.device_id == device_id)
+        same_serie = bool(serie_norm and _normalizar_serie(log.serial_number) == serie_norm)
+        if not same_device and not same_serie:
+            continue
+        mac = _normalizar_mac_wifi(log.wifi_mac)
+        if mac:
+            return mac
+    return ""
+
+
 def _buscar_asset_supabase_por_serie(serie: str):
     serie_norm = _normalizar_serie(serie)
     if not serie_norm:
@@ -1800,6 +1814,8 @@ async def recibir_ping(data: PingRequest):
         ip_actual = (data.ip or "").strip()
         ssid_actual = (data.ssid or "").strip()
         wifi_mac_actual = _normalizar_mac_wifi(data.wifi_mac)
+        if not wifi_mac_actual:
+            wifi_mac_actual = _normalizar_mac_wifi(equipo.wifi_mac if equipo else "") or _ultima_mac_wifi_valida(db, data.device_id, serial_limpio)
         sync_externo = False
         if equipo:
             estado_externo_cambio = (
@@ -1912,7 +1928,7 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
                 "inventariado": asignacion.get("inventariado", False),
                 "hostname":    e.hostname,
                 "ip":          e.ip,
-                "wifi_mac":    _normalizar_mac_wifi(e.wifi_mac),
+                "wifi_mac":    _normalizar_mac_wifi(e.wifi_mac) or _ultima_mac_wifi_valida(db, e.device_id, e.serial_number),
                 "ssid":        e.ssid,
                 "dentro":      e.dentro,
                 "online":      online,
