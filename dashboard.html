@@ -2061,11 +2061,11 @@
       <tr>
         <td class="check-cell">${isGestor() ? `<input class="row-check" type="checkbox" data-device-id="${e.device_id}" ${selectedEquipos.has(e.device_id) ? 'checked' : ''} onchange="toggleSeleccion('${e.device_id}', this.checked)">` : ''}</td>
         <td>
-          <div class="hostname">${e.hostname || '—'}</div>
+          <a class="hostname" href="${equipoUrl(e)}">${e.hostname || '—'}</a>
           <div class="device-id">${e.device_id.slice(0,8)}…</div>
         </td>
         <td><a class="serial" href="${equipoUrl(e)}">${e.serial_number || '—'}</a></td>
-        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">Equipo no inventariado</span>${isGestor() ? `<br><a class="map-btn" href="${inventariarUrl(e)}"><i class="fas fa-plus-circle"></i> Inventariar</a>` : ''}`}</span></td>
+        <td><span class="assigned">${e.inventariado ? (e.asignado || '<span style="color:var(--text3)">Sin asignar</span>') : `<span class="not-inventory">No inventariado</span>${isGestor() ? ` · <a class="serial" href="${inventariarUrl(e)}">Inventariar?</a>` : ''}`}</span></td>
         <td><span class="ip">${e.ip || '—'}</span></td>
         <td><span class="ip">${e.wifi_mac || '—'}</span></td>
         <td><span class="ssid">${e.ssid || '<span style="color:var(--text3)">—</span>'}</span></td>
