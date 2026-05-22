@@ -2078,7 +2078,7 @@
         </td>
         <td>${formatUltimaConexion(e.ultimo_ping)}</td>
         <td>${e.lat ? `<button class="map-btn" onclick="abrirEnMaps(${e.lat}, ${e.lng})"><i class="fas fa-map-location-dot"></i> Ver</button>` : '—'}</td>
-        <td><div class="actions-cell">${isGestor() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
+        <td><div class="actions-cell">${isGestor() ? `<button class="del-btn" title="Eliminar" onclick="eliminarEquipo('${e.device_id}', '${(e.hostname||'').replace(/'/g,"\\'")}', '${e.serial_number || ''}', '${e.asset_id || ''}', '${e.numInventario || ''}')"><i class="fas fa-trash-alt"></i></button>` : ''}</div></td>
       </tr>
     `).join('');
     const selectAll = document.getElementById('select-all');
@@ -2162,10 +2162,11 @@
     }
   }
 
-  async function eliminarEquipo(deviceId, hostname) {
-    if (!confirm(`¿Eliminar "${hostname || deviceId}"?\nSe borrará el equipo y todo su historial.`)) return;
+  async function eliminarEquipo(deviceId, hostname, serie = '', assetId = '', numInventario = '') {
+    if (!confirm(`¿Eliminar "${hostname || numInventario || serie || deviceId}"?\nSe borrará el equipo y todo su historial.`)) return;
     try {
-      const res = await fetch(`${SERVER}/api/equipos/${deviceId}`, { method: 'DELETE', headers: authHeaders() });
+      const params = new URLSearchParams({ serie: serie || '', asset_id: assetId || '', num_inventario: numInventario || '' });
+      const res = await fetch(`${SERVER}/api/equipos/${encodeURIComponent(deviceId)}?${params.toString()}`, { method: 'DELETE', headers: authHeaders() });
       if (!res.ok) { const err = await res.json().catch(() => ({})); alert('Error: ' + (err.detail || res.status)); return; }
       await fetchData();
     } catch { alert('No se pudo conectar al servidor'); }
