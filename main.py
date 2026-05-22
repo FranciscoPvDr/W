@@ -1922,12 +1922,31 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
             for clave, item in list(resultado_por_clave.items()):
                 asset = assets_por_clave.get(clave)
                 if asset:
-                    if not item.get("ip") and asset.get("ip"):
+                    repair_payload = {}
+                    if item.get("ip") and item.get("ip") != asset.get("ip"):
+                        repair_payload["ip"] = item.get("ip")
+                    elif not item.get("ip") and asset.get("ip"):
                         item["ip"] = _safe_firestore_text(asset.get("ip"))
-                    if not item.get("wifi_mac") and asset.get("wifi_mac"):
+                    if item.get("wifi_mac") and item.get("wifi_mac") != asset.get("wifi_mac"):
+                        repair_payload["wifi_mac"] = item.get("wifi_mac")
+                    elif not item.get("wifi_mac") and asset.get("wifi_mac"):
                         item["wifi_mac"] = _safe_firestore_text(asset.get("wifi_mac"))
-                    if not item.get("ssid") and asset.get("ssid"):
+                    if item.get("ssid") and item.get("ssid") != asset.get("ssid"):
+                        repair_payload["ssid"] = item.get("ssid")
+                    elif not item.get("ssid") and asset.get("ssid"):
                         item["ssid"] = _safe_firestore_text(asset.get("ssid"))
+                    if item.get("hostname") and item.get("hostname") != asset.get("hostname"):
+                        repair_payload["hostname"] = item.get("hostname")
+                    if item.get("device_id") and item.get("device_id") != asset.get("device_id"):
+                        repair_payload["device_id"] = item.get("device_id")
+                    if item.get("ultimo_ping") and item.get("ultimo_ping") != asset.get("ultimo_ping"):
+                        repair_payload["ultimo_ping"] = item.get("ultimo_ping")
+                    if repair_payload and asset.get("id"):
+                        repair_payload["actualizado_en"] = datetime.utcnow().isoformat()
+                        try:
+                            _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset.get('id')}"}, json=repair_payload, prefer="return=minimal")
+                        except Exception as e:
+                            print(f"No se pudo reparar datos de red en Supabase para {asset.get('id')}: {e}")
                     if asset.get("ultimo_ping") and (not item.get("ultimo_ping") or str(asset.get("ultimo_ping")) > str(item.get("ultimo_ping"))):
                         item["ultimo_ping"] = asset.get("ultimo_ping")
                     elif not item.get("ultimo_ping") and asset.get("actualizado_en"):
