@@ -669,10 +669,14 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         return
     serie = (equipo.serial_number or "").strip()
-    if not serie:
+    device_id = (equipo.device_id or "").strip()
+    if not serie and not device_id:
         return
     try:
-        asset = _buscar_asset_supabase_por_serie(serie)
+        asset = _buscar_asset_supabase_por_serie(serie) if serie else None
+        if not asset and device_id:
+            rows = _supabase_request("GET", "equipos", params={"select": "*", "device_id": f"eq.{device_id}", "limit": "1"}) or []
+            asset = rows[0] if rows else None
         params = {"id": f"eq.{asset.get('id')}"} if asset and asset.get("id") else {"serie": f"eq.{serie}"}
         payload = {
             "device_id": equipo.device_id,
@@ -2209,6 +2213,56 @@ def debug_match_serie(device_id: Optional[str] = None, usuario=Depends(get_usuar
                     "serie": (fallback_data or {}).get("serie") if fallback_data else None,
                 },
             },
+        }
+    finally:
+        db.close()
+
+
+@app.get("/api/debug/supabase-equipo")
+def debug_supabase_equipo(serie: Optional[str] = None, device_id: Optional[str] = None, usuario=Depends(get_usuario_actual)):
+    exigir_gestor(usuario)
+    db = Session()
+    try:
+        equipo = None
+        serie_limpia = (serie or "").strip()
+        device_limpio = (device_id or "").strip()
+        if serie_limpia:
+            equipo = _buscar_equipo_por_serie_normalizada(db, serie_limpia)
+        if not equipo and device_limpio:
+            equipo = db.query(Equipo).filter_by(device_id=device_limpio).first()
+        logs_query = db.query(PingLog)
+        if equipo:
+            logs_query = logs_query.filter_by(device_id=equipo.device_id)
+        elif serie_limpia:
+            logs_query = logs_query.filter(PingLog.serial_number == serie_limpia)
+        logs = logs_query.order_by(PingLog.timestamp.desc()).limit(5).all()
+        supabase_por_serie = _buscar_asset_supabase_por_serie(serie_limpia) if serie_limpia else None
+        supabase_por_device = None
+        if device_limpio:
+            rows = _supabase_request("GET", "equipos", params={"select": "*", "device_id": f"eq.{device_limpio}", "limit": "1"}) or []
+            supabase_por_device = rows[0] if rows else None
+        return {
+            "ok": True,
+            "sqlite_equipo": {
+                "device_id": equipo.device_id,
+                "serial_number": equipo.serial_number,
+                "hostname": equipo.hostname,
+                "ip": equipo.ip,
+                "wifi_mac": equipo.wifi_mac,
+                "ssid": equipo.ssid,
+                "ultimo_ping": equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None,
+            } if equipo else None,
+            "ultimos_pings": [{
+                "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+                "device_id": l.device_id,
+                "serial_number": l.serial_number,
+                "hostname": l.hostname,
+                "ip": l.ip,
+                "wifi_mac": l.wifi_mac,
+                "ssid": l.ssid,
+            } for l in logs],
+            "supabase_por_serie": supabase_por_serie,
+            "supabase_por_device": supabase_por_device,
         }
     finally:
         db.close()
