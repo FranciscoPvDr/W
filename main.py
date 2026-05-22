@@ -689,11 +689,6 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
             "dentro": equipo.dentro,
             "sistema": equipo.sistema,
             "ultimo_ping": equipo.ultimo_ping.isoformat() if equipo.ultimo_ping else None,
-            "usb_storage_blocked": equipo.usb_storage_blocked,
-            "usb_storage_policy": equipo.usb_storage_policy,
-            "usb_storage_devices": equipo.usb_storage_devices,
-            "usb_block_error": equipo.usb_block_error or "",
-            "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
             "actualizado_en": datetime.utcnow().isoformat(),
         }
         if equipo.ip:
