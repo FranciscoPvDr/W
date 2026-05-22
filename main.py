@@ -731,9 +731,9 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
                 prefer="return=representation",
             )
         else:
-            payload["id"] = device_id or serie
+            payload["id"] = str(uuid.uuid4())
             payload["serie"] = serie
-            payload["num_inventario"] = ""
+            payload["num_inventario"] = None
             payload["tipo"] = "Laptop"
             payload["estado"] = "No inventariado"
             _supabase_request(
@@ -1427,6 +1427,9 @@ def crear_asset(data: AssetCreate, usuario=Depends(get_usuario_actual)):
     if existente:
         asset_id = existente.get("id")
         payload.pop("id", None)
+        for key in ["ip", "wifi_mac", "ssid", "hostname", "device_id", "ultimo_ping", "dentro", "sistema"]:
+            if existente.get(key) and not payload.get(key):
+                payload[key] = existente.get(key)
         _supabase_request("PATCH", "equipos", params={"id": f"eq.{asset_id}"}, json=payload)
         _cache_clear("assets")
         return {"ok": True, "id": asset_id, "merged": True}
