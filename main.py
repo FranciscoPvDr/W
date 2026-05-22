@@ -672,10 +672,12 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
     if not serie:
         return
     try:
+        asset = _buscar_asset_supabase_por_serie(serie)
+        params = {"id": f"eq.{asset.get('id')}"} if asset and asset.get("id") else {"serie": f"eq.{serie}"}
         _supabase_request(
             "PATCH",
             "equipos",
-            params={"serie": f"eq.{serie}"},
+            params=params,
             json={
                 "device_id": equipo.device_id,
                 "hostname": equipo.hostname,
@@ -692,7 +694,7 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
                 "usb_updated_at": equipo.usb_updated_at.isoformat() if equipo.usb_updated_at else None,
                 "actualizado_en": datetime.utcnow().isoformat(),
             },
-            prefer="return=minimal",
+            prefer="return=representation",
         )
     except Exception as e:
         print(f"No se pudo sincronizar USB a Supabase para serie {serie}: {e}")
@@ -1894,7 +1896,20 @@ def listar_equipos(usuario=Depends(get_usuario_actual)):
 
         try:
             assets_supabase = _supabase_request("GET", "equipos", params={"select": "*"}) or []
+            assets_por_clave = {}
             for asset in _dedupe_assets_por_serie(assets_supabase):
+                serie = _safe_firestore_text(asset.get("serie"))
+                clave = _normalizar_serie(serie) or _safe_firestore_text(asset.get("id"))
+                if clave:
+                    assets_por_clave[clave] = asset
+            for clave, item in list(resultado_por_clave.items()):
+                asset = assets_por_clave.get(clave)
+                if asset:
+                    if not item.get("wifi_mac") and asset.get("wifi_mac"):
+                        item["wifi_mac"] = _safe_firestore_text(asset.get("wifi_mac"))
+                    if not item.get("ultimo_ping") and (asset.get("ultimo_ping") or asset.get("actualizado_en")):
+                        item["ultimo_ping"] = asset.get("ultimo_ping") or asset.get("actualizado_en")
+            for asset in assets_por_clave.values():
                 if not _es_asset_computadora(asset):
                     continue
                 serie = _safe_firestore_text(asset.get("serie"))
