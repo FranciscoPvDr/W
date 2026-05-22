@@ -677,7 +677,12 @@ def sync_equipo_usb_to_supabase(equipo: Equipo):
         if not asset and device_id:
             rows = _supabase_request("GET", "equipos", params={"select": "*", "device_id": f"eq.{device_id}", "limit": "1"}) or []
             asset = rows[0] if rows else None
-        params = {"id": f"eq.{asset.get('id')}"} if asset and asset.get("id") else {"serie": f"eq.{serie}"}
+        if asset and asset.get("id"):
+            params = {"id": f"eq.{asset.get('id')}"}
+        elif serie:
+            params = {"serie": f"eq.{serie}"}
+        else:
+            params = {"device_id": f"eq.{device_id}"}
         payload = {
             "device_id": equipo.device_id,
             "hostname": equipo.hostname,
@@ -2214,6 +2219,35 @@ def debug_match_serie(device_id: Optional[str] = None, usuario=Depends(get_usuar
                 },
             },
         }
+    finally:
+        db.close()
+
+
+@app.post("/api/supabase/sync-equipos")
+def sincronizar_equipos_supabase(usuario=Depends(get_usuario_actual)):
+    exigir_gestor(usuario)
+    db = Session()
+    sincronizados = []
+    errores = []
+    try:
+        equipos = db.query(Equipo).order_by(Equipo.ultimo_ping.desc()).all()
+        for equipo in equipos:
+            try:
+                sync_equipo_usb_to_supabase(equipo)
+                sincronizados.append({
+                    "device_id": equipo.device_id,
+                    "serial_number": equipo.serial_number,
+                    "hostname": equipo.hostname,
+                    "ip": equipo.ip,
+                    "wifi_mac": equipo.wifi_mac,
+                })
+            except Exception as e:
+                errores.append({
+                    "device_id": equipo.device_id,
+                    "serial_number": equipo.serial_number,
+                    "error": str(e),
+                })
+        return {"ok": len(errores) == 0, "sincronizados": sincronizados, "errores": errores}
     finally:
         db.close()
 
